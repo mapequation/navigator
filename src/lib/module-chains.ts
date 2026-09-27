@@ -14,9 +14,18 @@ export interface ModuleChains {
  * Intern the enclosing-module chain of every record in one pass. A record only walks the part of its
  * chain it does not share with the record before it, so for records in tree order (as Infomap writes
  * them) this is a few integer compares per node, and a module's key string is built once — not once per
- * node and path prefix. Exact for records in any order.
+ * node and path prefix. Exact for records in any order. Cached per records array.
  */
 export function moduleChains(records: readonly ModuleNode[]): ModuleChains {
+  let chains = cache.get(records);
+  if (!chains) cache.set(records, (chains = internChains(records)));
+  return chains;
+}
+
+/** One walk per hierarchy: the module stats and the module labels both read it. Held as long as the records. */
+const cache = new WeakMap<readonly ModuleNode[], ModuleChains>();
+
+function internChains(records: readonly ModuleNode[]): ModuleChains {
   const keys = [""];
   const parents = [-1];
   const children: (Map<number, number> | undefined)[] = [undefined];
