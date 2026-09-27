@@ -7,6 +7,7 @@ import {
 } from "@mapequation/d3gl/network";
 import { makeAutoObservable, observable } from "mobx";
 import { withClustering } from "../lib/apply-ftree";
+import { moduleChains } from "../lib/module-chains";
 import { parseNodeNames } from "../lib/node-names";
 import { OCCURRENCE_COLORS } from "../lib/occurrence-colors";
 import { pathKey } from "../lib/path-key";
@@ -50,7 +51,7 @@ function commonPathPrefix(paths: ArrayLike<number>[]): number[] {
   return Array.from({ length: len }, (_, k) => first[k]);
 }
 
-/** See {@link NetworkStore.maxLinkFlow}. */
+/** See {@link NetworkStore.maxLinkFlow}. O(nodes + edges). */
 function maxLinkFlowOf(net: LoadedNetwork, maxLeafWeight: number): number {
   let max = maxLeafWeight;
   for (const l of net.moduleLinks ?? []) if (l.flow > max) max = l.flow;
@@ -58,31 +59,58 @@ function maxLinkFlowOf(net: LoadedNetwork, maxLeafWeight: number): number {
   if (!modules) return max;
   // Leaf links summed per ordered pair of distinct top modules (the coarsest super-edges).
   const g = net.graph;
+  const top = new Int32Array(g.nodeCount).fill(-1);
+  let tops = 0;
+  for (const { id, path } of modules) {
+    const t = path[0] ?? -1;
+    top[id] = t;
+    if (t + 1 > tops) tops = t + 1;
+  }
   const pair = new Map<number, number>();
-  const tops = 1 + modules.reduce((m, r) => Math.max(m, r.path[0] ?? 0), 0);
+  const weight = g.weight;
   for (let e = 0; e < g.source.length; e++) {
-    const a = modules[g.source[e]]?.path[0];
-    const b = modules[g.target[e]]?.path[0];
-    if (a === undefined || b === undefined || a === b) continue;
+    const a = top[g.source[e]] ?? -1;
+    const b = top[g.target[e]] ?? -1;
+    if (a < 0 || b < 0 || a === b) continue;
     const key = a * tops + b;
-    const sum = (pair.get(key) ?? 0) + (g.weight?.[e] ?? 1);
+    const sum = (pair.get(key) ?? 0) + (weight?.[e] ?? 1);
     pair.set(key, sum);
     if (sum > max) max = sum;
   }
   return max;
 }
 
-/** Module pathKey → highest-flow leaf, over every module prefix. O(nodes · depth). */
+/**
+ * Module pathKey → highest-flow leaf, over every module prefix (the first such leaf in record order on a
+ * tie). O(nodes + modules): each enclosing module's best leaf, then each module's best passed up to its
+ * parent — a module comes after its parent, so one backward pass sees every child first.
+ */
 function topLeaves(net: LoadedNetwork): Map<string, number> {
   const out = new Map<string, number>();
   const flow = net.graph.nodeFlow as ArrayLike<number> | undefined;
-  if (!net.modules || !flow) return out;
-  for (const { id, path } of net.modules) {
-    for (let k = 1; k < path.length; k++) {
-      const key = pathKey(Array.prototype.slice.call(path, 0, k));
-      const best = out.get(key);
-      if (best === undefined || flow[id] > flow[best]) out.set(key, id);
-    }
+  const records = net.modules;
+  if (!records || !flow) return out;
+  const { keys, parent, recordModule } = moduleChains(records);
+  const best = new Int32Array(keys.length).fill(-1); // record index of each module's best leaf
+  const better = (r: number, than: number): boolean => {
+    if (than < 0) return true;
+    const a = flow[records[r]?.id ?? 0] ?? 0;
+    const b = flow[records[than]?.id ?? 0] ?? 0;
+    return a > b || (a === b && r < than);
+  };
+  for (let r = 0; r < records.length; r++) {
+    const m = recordModule[r] ?? 0;
+    if (better(r, best[m] ?? -1)) best[m] = r;
+  }
+  for (let m = keys.length - 1; m >= 1; m--) {
+    const r = best[m] ?? -1;
+    const p = parent[m] ?? 0;
+    if (r >= 0 && better(r, best[p] ?? -1)) best[p] = r;
+  }
+  for (let m = 1; m < keys.length; m++) {
+    const r = best[m] ?? -1;
+    const id = records[r]?.id;
+    if (id !== undefined) out.set(keys[m] ?? "", id);
   }
   return out;
 }
@@ -118,8 +146,8 @@ export class NetworkStore {
   zoomTo: ((ids: readonly number[] | null) => void) | null = null;
 
   private moduleLeafCache = new Map<string, readonly number[]>();
-  /** Module pathKey → its highest-flow leaf (names unnamed modules, v1-style). */
-  private moduleTopLeaf = new Map<string, number>();
+  /** Module pathKey → its highest-flow leaf (names unnamed modules, v1-style); built on first use. */
+  private moduleTopLeaf: Map<string, number> | null = null;
 
   constructor() {
     // `moduleLeafCache` is private; TS's homomorphic AnnotationsMap mapped type drops private
@@ -169,7 +197,7 @@ export class NetworkStore {
     this.maxDegree = maxDegree;
     this.maxWeight = maxWeight;
     this.maxLinkFlow = maxLinkFlowOf(net, maxWeight);
-    this.moduleTopLeaf = topLeaves(net);
+    this.moduleTopLeaf = null; // built when a module is first named (moduleLabel)
   }
 
   /** A module's display name: curated (example), else its highest-flow node's name. */
@@ -179,6 +207,7 @@ export class NetworkStore {
     const key = pathKey(path);
     const curated = cur.moduleNames?.get(key);
     if (curated) return curated;
+    this.moduleTopLeaf ??= topLeaves(cur);
     const leaf = this.moduleTopLeaf.get(key);
     return leaf === undefined ? "" : (cur.names[leaf] ?? "");
   }
@@ -197,7 +226,7 @@ export class NetworkStore {
     this.maxWeight = 0;
     this.maxLinkFlow = 0;
     this.moduleLeafCache.clear();
-    this.moduleTopLeaf = new Map();
+    this.moduleTopLeaf = null;
   }
 
   applyClustering(tree: InfomapTree): void {
