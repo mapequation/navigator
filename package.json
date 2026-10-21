@@ -1,30 +1,47 @@
 {
-  "name": "infomap-network-navigator",
-  "version": "1.2.0",
-  "homepage": "/navigator",
+  "name": "network-navigator",
+  "version": "2.3.0",
   "private": true,
+  "type": "module",
+  "homepage": "/navigator",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run --passWithNoTests",
+    "e2e": "playwright test",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
   "dependencies": {
-    "d3": "^5.15.1",
-    "file-saver": "^1.3.8",
-    "localforage": "^1.7.3",
-    "lodash": "^4.17.19",
-    "prop-types": "^15.7.2",
-    "react": "^16.13.1",
-    "react-dom": "^16.13.1",
-    "react-scripts": "^3.4.1",
-    "recharts": "^1.8.5",
-    "semantic-ui-css": "^2.4.1",
-    "semantic-ui-react": "^0.80.2"
+    "@heroui/react": "^3.2.1",
+    "@heroui/styles": "^3.2.1",
+    "@mapequation/c3": "^2.0.1",
+    "@mapequation/d3gl": "^0.12.0",
+    "@mapequation/infomap": "^2.14.0",
+    "@mapequation/infomap-parser": "^1.0.2",
+    "d3-scale": "^4.0.2",
+    "localforage": "^1.10.0",
+    "mobx": "^6.16.1",
+    "mobx-react-lite": "^4.1.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-dropzone": "^15.0.0",
+    "recharts": "^3.9.1"
   },
   "devDependencies": {
-    "standard-version": "^8.0.1",
-    "prettier": "^1.19.1"
+    "@biomejs/biome": "^2.5.2",
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/vite": "^4.3.2",
+    "@types/d3-scale": "^4.0.9",
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "tailwindcss": "^4.3.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.2",
+    "vitest": "^4.1.9"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "deploy": "react-scripts build",
-    "release": "standard-version"
-  }
+  "packageManager": "pnpm@11.9.0"
 }

@@ -19,25 +19,20 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/configure-pages@v5
-
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          cache: npm
-
-      - run: npm ci
-
-      - run: npm run build
-        env:
-          NODE_OPTIONS: --openssl-legacy-provider
-
-      - run: touch build/.nojekyll
-
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - uses: actions/configure-pages@v5
+      - run: touch dist/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: build
-
+          path: dist
   deploy:
     needs: build
     runs-on: ubuntu-24.04
