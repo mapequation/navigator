@@ -3,7 +3,7 @@
   "version": "2.3.0",
   "private": true,
   "type": "module",
-  "homepage": "/network-navigator",
+  "homepage": "/navigator",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

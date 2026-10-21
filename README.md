@@ -2,7 +2,7 @@
 
 Interactive navigator for hierarchical (Infomap) networks, built on
 [@mapequation/d3gl](https://www.npmjs.com/package/@mapequation/d3gl).
-Published under `/network-navigator`; part of [mapequation.org](https://www.mapequation.org).
+Published at [mapequation.org/navigator](https://www.mapequation.org/navigator/); part of [mapequation.org](https://www.mapequation.org).
 
 ## Features
 
@@ -18,7 +18,7 @@ Published under `/network-navigator`; part of [mapequation.org](https://www.mape
 
 pnpm + Vite + React + TypeScript. `pnpm install`, then:
 
-- `pnpm dev` — dev server at `/network-navigator/`
+- `pnpm dev` — dev server at `/navigator/`
 - `pnpm test` / `pnpm lint` / `pnpm build`
 
 Deployed to GitHub Pages by `.github/workflows/pages.yml` on push to `master`.

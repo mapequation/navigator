@@ -2,7 +2,7 @@
 
 Network Navigator 2.0: Vite + React 19 + TS + HeroUI 3 + MobX, rendered with `@mapequation/d3gl`.
 Scripts: `pnpm dev`, `pnpm build` (tsc + vite), `pnpm test` (vitest), `pnpm e2e` (Playwright), `pnpm lint` (biome).
-Git: `gh` resolves to the upstream v1 repo here, so always pass `-R mapequation/network-navigator`. Worktrees go
+Git: the repo is `mapequation/navigator` (v2 replaced v1 there; `network-navigator` is archived). Worktrees go
 under `.claude/worktrees/`.
 
 ## Developing d3gl alongside the app
