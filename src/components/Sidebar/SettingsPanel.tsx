@@ -242,13 +242,25 @@ export const DisplayPanel = observer(function DisplayPanel() {
 
   return (
     <>
-      {cur?.isStates && (
+      {(!cur || cur.isStates) && (
         <Row label="State view">
           <Segmented
             label="State view"
             value={settings.stateView}
             options={["physical", "state", "both"] as const}
             onChange={(v) => settings.set("stateView", v)}
+          />
+        </Row>
+      )}
+      {(!cur || cur.isStates) && (
+        <Row
+          label="Lump states"
+          hint="A network with modules: one node per physical node in each module, as the map equation codes them"
+        >
+          <Toggle
+            label="Lump states"
+            isSelected={settings.lumpStates}
+            onChange={(on) => settings.set("lumpStates", on)}
           />
         </Row>
       )}
@@ -322,7 +334,7 @@ export const DisplayPanel = observer(function DisplayPanel() {
         >
           <Toggle
             label="Bend links"
-            isSelected={settings.bendFor(halfArrow)}
+            isSelected={settings.bendLinks}
             onChange={(on) => settings.set("bendLinks", on)}
           />
         </Row>
@@ -344,7 +356,7 @@ export const DisplayPanel = observer(function DisplayPanel() {
           value={settings.linkWidthRange}
           format={(v) => `${v}${unit}`}
           min={0.1}
-          max={10}
+          max={20}
           step={0.1}
           onChange={(v) => settings.set("linkWidthRange", v)}
         />

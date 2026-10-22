@@ -1,6 +1,7 @@
 import {
   buildGraph,
   buildStateGraph,
+  type LumpedStateNetwork,
   type Network,
   type NetworkGraph,
   type StateNetworkGraph,
@@ -17,7 +18,8 @@ export interface SelectionInfo {
   /** Node ids (a state network's state ids): the node, or an aggregate's members. */
   ids: number[];
   aggregate: boolean;
-  /** A physical node of a state network: named and weighed as itself, `ids` its state nodes. */
+  /** A physical node of a state network, or a lump (one physical node in one
+   *  module, d3gl#529): named and weighed as itself, `ids` its state nodes. */
   physical: boolean;
   name: string;
   path: number[] | null;
@@ -192,6 +194,14 @@ export class NetworkStore {
     boundary: number;
   } | null = null;
   /**
+   * The lumped network the engine draws a state network's state and both
+   * views by (d3gl#529), as `net.lumped` gives it after a load or a toggle,
+   * and its largest node flow, degree and link weight: those views' scale
+   * domains. Null while they draw the state nodes as given.
+   */
+  lumped: LumpedStateNetwork | null = null;
+  lumpedMax: { flow: number; degree: number; weight: number } | null = null;
+  /**
    * Bumped on every load (setNetwork): the view takes the network as new data,
    * lays it out from scratch and frames it. A re-clustering of a plain network
    * keeps it — same nodes, same graph buffers — so the view keeps its engine,
@@ -222,6 +232,7 @@ export class NetworkStore {
         current: observable.ref,
         built: false,
         builtState: false,
+        lumped: observable.ref,
         engine: false,
         zoomTo: false,
         moduleLeafCache: false,
@@ -252,6 +263,8 @@ export class NetworkStore {
     this.maxDegree = max.degree;
     this.maxWeight = max.weight;
     this.maxLinkFlow = maxLinkFlowOf(net, max.weight);
+    this.lumped = null;
+    this.lumpedMax = null;
     this.physicalMax = this.builtState
       ? {
           ...maximaOf(this.builtState.physical),
@@ -288,8 +301,46 @@ export class NetworkStore {
     this.maxLinkFlow = 0;
     this.maxBoundaryFlow = 0;
     this.physicalMax = null;
+    this.lumped = null;
+    this.lumpedMax = null;
     this.moduleLeafCache.clear();
     this.moduleTopLeaf = new Map();
+  }
+
+  /** The lumped network the engine draws now (net.lumped), or null. */
+  setLumped(lumped: LumpedStateNetwork | null): void {
+    if (lumped === this.lumped) return;
+    this.lumped = lumped;
+    this.lumpedMax = lumped ? maximaOf(lumped.graph.state) : null;
+  }
+
+  /**
+   * Select lump `l` of the lumped network: its physical node in its module,
+   * named by the physical node, weighed by the lump's own flow and degree,
+   * its state nodes the members.
+   */
+  selectLump(l: number): void {
+    const cur = this.current;
+    const lumped = this.lumped;
+    if (!cur || !lumped) return;
+    const ids = statesOf(lumped.lumpToState, l);
+    const p = lumped.graph.stateToPhysical[l] ?? -1;
+    // Its module: its record less its rank. None without modules.
+    const record = lumped.modules?.[l];
+    const path = record ? Array.from(record.path).slice(0, -1) : null;
+    this.selection = {
+      ids,
+      aggregate: true,
+      physical: true,
+      name: cur.physicalNames?.[p] ?? String(p),
+      path,
+      modules: null,
+      flow: lumped.graph.state.flow?.[l] ?? null,
+      exitFlow: null, // a lump's own exit flow is not known
+      degree: lumped.graph.state.csr.degree[l] ?? null,
+      physicalId: cur.physicalIds?.[ids[0] ?? -1] ?? null,
+    };
+    if (path) this.breadcrumb = path;
   }
 
   /** Cluster the current network with an in-app Infomap run's tree and flow text. */

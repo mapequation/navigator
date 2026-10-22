@@ -43,7 +43,7 @@ export class SettingsStore {
   /** Node radius [min, max] in the sizeMode's units (px in screen mode). */
   nodeRadiusRange: [number, number] = [4, 14];
   /** Link width [min, max] in the sizeMode's units (px in screen mode). */
-  linkWidthRange: [number, number] = [0.4, 4];
+  linkWidthRange: [number, number] = [0.4, 7];
   linkScale: ScaleKind = "root";
   labelsVisible = true;
   maxLabels = 50;
@@ -65,11 +65,11 @@ export class SettingsStore {
   linkStyle: "line" | "half-arrow" = "half-arrow";
   sizeMode: "screen" | "world" = "screen";
   /**
-   * null = auto: bend half-arrow links only. Half-arrows are always drawn as
+   * Bend links, whatever their style. Half-arrows are always drawn as
    * 24-sample strips, so bending them is free on WebGL; plain lines go from 2
    * to 24 samples per link when bent (~12× the vertices).
    */
-  bendLinks: boolean | null = null;
+  bendLinks = true;
   // "auto" (progressive canvas→WebGL) blocks the main thread for ~10s emitting
   // canvas geometry on large graphs (mapequation/d3gl#201) — default to webgl
   // until the auto path scales; auto/canvas/svg stay selectable in Settings.
@@ -84,11 +84,13 @@ export class SettingsStore {
   nestedLayout = true;
   pickLinks = false;
   stateView: "physical" | "state" | "both" = "physical";
-
-  /** Whether links are bent for the given link style, resolving auto. */
-  bendFor(halfArrow: boolean): boolean {
-    return this.bendLinks ?? halfArrow;
-  }
+  /**
+   * A state network with modules: its state and both views draw each
+   * physical node's state nodes in one leaf module as one node (d3gl#529), as
+   * the map equation codes them. As Nested layout, it applies to a network
+   * with modules; the physical view is the same either way.
+   */
+  lumpStates = true;
 
   constructor() {
     makeAutoObservable(this);

@@ -14,7 +14,12 @@ import { useEffect, useRef } from "react";
 import { c3ModuleColor, type ModuleColor } from "../lib/c3-module-colors";
 import { fitTransform } from "../lib/fit-transform";
 import { pathKey } from "../lib/path-key";
-import { physicalModule, type StateView, viewIds } from "../lib/state-ids";
+import {
+  lumpStates,
+  physicalModule,
+  type StateView,
+  viewIds,
+} from "../lib/state-ids";
 import type { LoadedNetwork } from "../lib/types";
 import { useStores } from "../stores";
 import type { NetworkStore } from "../stores/network-store";
@@ -159,9 +164,13 @@ export function buildStyle(
   const sg = cur?.isStates ? store.builtState : null;
   const physical =
     sg && settings.stateView === "physical" ? store.physicalMax : null;
-  const maxFlow = physical ? physical.flow : store.maxFlow;
-  const maxDegree = physical ? physical.degree : store.maxDegree;
-  const maxLinkFlow = physical ? physical.weight : store.maxLinkFlow;
+  // Lumped (d3gl#529), the state and both views draw the lumps: the scales
+  // span the lumped graph's flow, degree and link weights.
+  const lumped = sg && settings.stateView !== "physical" ? store.lumped : null;
+  const max = physical ?? (lumped ? store.lumpedMax : null);
+  const maxFlow = max ? max.flow : store.maxFlow;
+  const maxDegree = max ? max.degree : store.maxDegree;
+  const maxLinkFlow = max ? max.weight : store.maxLinkFlow;
   const linkDomain: [number, number] = [0, maxLinkFlow || 1];
   const flowFill = scaleLinear<string>()
     .domain([0, maxFlow || 1])
@@ -169,23 +178,31 @@ export function buildStyle(
     .clamp(true);
   // Node i's module colour, as d3gl's { by: "module" } gives it: a node's
   // enclosing module's, a state network's physical node its largest top
-  // module's.
+  // module's. A lump's records are the lumped network's, by lump id.
   const modules = cur?.modules;
   const moduleFillOf = (i: number, g: NetworkGraph): string => {
     if (!color || !modules) return DEFAULT_NODE_FILL;
     const path =
       sg && g === sg.physical
         ? physicalModule(sg.physicalToState, i, modules, sg.state.flow)
-        : Array.from(modules[i]?.path ?? []).slice(0, -1);
+        : Array.from(
+            (lumped ? lumped.modules : modules)?.[i]?.path ?? [],
+          ).slice(0, -1);
     return color(path) ?? DEFAULT_NODE_FILL;
   };
   const fillOf = (i: number, g: NetworkGraph): string =>
     flowColors ? flowFill(g.flow?.[i] ?? 0) : moduleFillOf(i, g);
   // Occurrence ids are state ids in a state network: its physical graph's
-  // nodes take the colour of a file that holds one of their state nodes.
+  // nodes, and lumps, take the colour of a file that holds one of their
+  // state nodes.
   const stateOccurrences = occurrences.map((f) => ({
     color: f.color,
-    ids: f.idSet,
+    ids:
+      lumped && sg
+        ? new Set(
+            viewIds(f.ids, "state", sg.stateToPhysical, lumped.stateToLump),
+          )
+        : f.idSet,
   }));
   const physicalOccurrences = sg
     ? occurrences.map((f) => ({
@@ -194,7 +211,13 @@ export function buildStyle(
       }))
     : stateOccurrences;
   // A state network's physical view draws its physical nodes' flow borders.
-  const ring = physical ? cur?.physicalBoundaryFlow : cur?.boundaryFlow;
+  // A lump's own exit flow is not known (its state nodes' sum would count the
+  // flow between them): lumped views draw the modules' rings only.
+  const ring = physical
+    ? cur?.physicalBoundaryFlow
+    : lumped
+      ? undefined
+      : cur?.boundaryFlow;
   const moduleFlow = cur?.moduleFlow;
   const ringScale = ringScaleOf(store, settings);
   const ringColor = scaleLinear<string>()
@@ -206,7 +229,7 @@ export function buildStyle(
     sizeMode: settings.sizeMode,
     linkStyle,
     // Half-arrow bend is an absolute world offset; line bend a chord fraction.
-    linkBend: settings.bendFor(halfArrow)
+    linkBend: settings.bendLinks
       ? halfArrow
         ? HALF_ARROW_BEND
         : LINE_BEND
@@ -378,7 +401,24 @@ export const NetworkView = observer(function NetworkView() {
     // view's own (see viewIds).
     const inView = (ids: readonly number[]): readonly number[] => {
       const sg = store.current?.isStates ? store.builtState : null;
-      return sg ? viewIds(ids, settings.stateView, sg.stateToPhysical) : ids;
+      return sg
+        ? viewIds(
+            ids,
+            settings.stateView,
+            sg.stateToPhysical,
+            store.lumped?.stateToLump,
+          )
+        : ids;
+    };
+
+    // A state-level id names a state node, or while lumped (d3gl#529) a lump:
+    // named by its physical node.
+    const stateName = (id: number): string => {
+      const lumped = net.lumped;
+      const cur = store.current;
+      return lumped
+        ? (cur?.physicalNames?.[lumped.graph.stateToPhysical[id] ?? -1] ?? "")
+        : (cur?.names[id] ?? "");
     };
 
     net.enableZoom(ZOOM_EXTENT);
@@ -397,10 +437,17 @@ export const NetworkView = observer(function NetworkView() {
         }
         const datum = hit.datum as NetworkHit;
         const members = hit.members ? hit.members().map(Number) : null;
+        // Lumped (d3gl#529), a state or both view's ids are lumps: the store
+        // keeps state ids.
+        const lumped = settings.stateView !== "physical" ? store.lumped : null;
+        if (lumped && datum.level === "state" && datum.aggregate !== true) {
+          store.selectLump(Number(hit.id));
+          return;
+        }
         store.selectFromHit(
           Number(hit.id),
           datum.aggregate === true,
-          members,
+          lumped && members ? lumpStates(lumped, members) : members,
           // A physical node: the physical view's, or a both-view container.
           datum.level === "physical" ? (datum.physical ?? null) : null,
         );
@@ -434,8 +481,11 @@ export const NetworkView = observer(function NetworkView() {
       const hit = net.pick(ev.clientX - rect.left, ev.clientY - rect.top);
       // A group zooms to its members; a single node has nothing to fit, so
       // d3-zoom's own double-click zoom applies.
-      const members = hit?.members?.();
-      if (members && members.length > 1) store.zoomTo?.(members.map(Number));
+      const members = hit?.members?.().map(Number);
+      // zoomTo takes state ids; a lumped view's members are lumps (d3gl#529).
+      const lumped = settings.stateView !== "physical" ? store.lumped : null;
+      if (members && members.length > 1)
+        store.zoomTo?.(lumped ? lumpStates(lumped, members) : members);
     };
     host.addEventListener("dblclick", onDblClick);
 
@@ -587,11 +637,16 @@ export const NetworkView = observer(function NetworkView() {
         net.stateNetwork(store.builtState, {
           modules: cur.modules,
           view: settings.stateView,
+          // As Nested layout: lumped by the network's modules, if it has any.
+          lump: settings.lumpStates && !!cur.modules,
         });
+        store.setLumped(net.lumped);
       } else {
         net.data(graph, hierarchyOf(cur));
       }
-      if (flowFirst) applyStyle(s);
+      // Read again: lumped (d3gl#529), the style follows the lumps just set,
+      // and `s`'s per-state-node arrays would not fit them.
+      if (flowFirst) applyStyle(style.get());
       net.select(
         "nodes",
         store.searchHighlight && inView(store.searchHighlight),
@@ -641,6 +696,32 @@ export const NetworkView = observer(function NetworkView() {
           relayout();
         },
       ),
+      // Lumping (d3gl#529) switched: the state and both views draw the lumps,
+      // or the state nodes as given, and d3gl maps the selection across. The
+      // physical layout stays. The state view keeps its picture: d3gl starts
+      // the other form where this one's nodes are and settles it with a warm
+      // run, now in the state view, else as the state view is next shown.
+      reaction(
+        () => settings.lumpStates,
+        (on) => {
+          // A network without modules is not lumped (see show).
+          if (
+            !holdsCurrent() ||
+            !store.current?.isStates ||
+            !store.current.modules
+          )
+            return;
+          net.lump(on);
+          store.setLumped(net.lumped);
+          if (store.searchHighlight)
+            net.select("nodes", inView(store.searchHighlight));
+          if (settings.stateView === "state") follow();
+          else
+            runInAction(() =>
+              latestOf.state.set({ ...latestOf.state.get(), settled: false }),
+            );
+        },
+      ),
       reaction(
         () => style.get(),
         (s) => {
@@ -676,13 +757,15 @@ export const NetworkView = observer(function NetworkView() {
                         : `${info.count.toLocaleString()} node${info.count === 1 ? "" : "s"}`
                       : info.level === "physical"
                         ? (store.current?.physicalNames?.[id] ?? "")
-                        : (store.current?.names[id] ?? ""),
+                        : stateName(id),
                   importanceOf: (id, info) =>
                     info.aggregate
                       ? info.count
                       : info.level === "physical"
                         ? (store.builtState?.physical.flow?.[id] ?? 0)
-                        : (store.built?.flow?.[id] ?? 0),
+                        : ((net.lumped?.graph.state ?? store.built)?.flow?.[
+                            id
+                          ] ?? 0),
                 }
               : false,
           ),
