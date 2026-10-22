@@ -49,3 +49,24 @@ describe("SettingsStore colour", () => {
     expect(new SettingsStore().colorBy).toBe("module");
   });
 });
+
+describe("SettingsStore link bend", () => {
+  it("is its own setting: a link style switch leaves it as it is", () => {
+    const settings = new SettingsStore();
+    expect(settings.bendLinks).toBe(true);
+    settings.set("linkStyle", "line");
+    expect(settings.bendLinks).toBe(true);
+    settings.set("bendLinks", false);
+    settings.set("linkStyle", "half-arrow");
+    expect(settings.bendLinks).toBe(false);
+  });
+});
+
+describe("SettingsStore lump states", () => {
+  it("defaults to on, a setting of its own whatever the view (d3gl#529)", () => {
+    const settings = new SettingsStore();
+    expect(settings.lumpStates).toBe(true);
+    settings.set("stateView", "physical");
+    expect(settings.lumpStates).toBe(true);
+  });
+});

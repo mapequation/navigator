@@ -412,6 +412,64 @@ test.describe("Network Navigator smoke", () => {
     expect(errors.filter(isFatal)).toEqual([]);
   });
 
+  test("states: lumped, clustered in the both view, toggled in the state view (d3gl#529)", async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    // Clustered, toy_states.net lumps its 4 state nodes into 3: a per-state-node
+    // style array applied to the lumps would throw (flowBorder.flow).
+    await addFiles(page, [fixture("toy_states.net")]);
+    await page.getByRole("button", { name: "Load", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Load network" }),
+    ).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
+    const views = page.getByRole("radiogroup", { name: "State view" });
+    const lump = page.getByRole("switch", { name: "Lump states" });
+    const busy = page.locator("main [aria-busy]");
+    const labels = (): Promise<string[]> =>
+      page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>("main [data-label-id]")]
+          .map((el) => el.textContent ?? "")
+          .filter(Boolean),
+      );
+    // Lump states on, as Nested layout applies to a network with modules: no
+    // modules yet, so the state view draws its state nodes, by their names.
+    await expect(lump).toBeChecked();
+    await views.getByRole("radio", { name: "state" }).click();
+    await expect
+      .poll(labels)
+      .toEqual(expect.arrayContaining(["alpha-1", "alpha-2"]));
+    await views.getByRole("radio", { name: "both" }).click();
+
+    await page.getByRole("button", { name: "Run Infomap", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Re-run Infomap" }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("main canvas")).toBeVisible();
+    await expect(lump).toBeEnabled();
+    await expect(lump).toBeChecked();
+
+    // Clustered: the state view draws the lumps, by their physical node's name.
+    await views.getByRole("radio", { name: "state" }).click();
+    await expect
+      .poll(async () => {
+        const now = await labels();
+        return now.includes("alpha") && !now.includes("alpha-1");
+      })
+      .toBe(true);
+    for (const on of [false, true]) {
+      await lump.click({ force: true }); // react-aria hides the input
+      if (on) await expect(lump).toBeChecked();
+      else await expect(lump).not.toBeChecked();
+      await expect(busy).toHaveAttribute("aria-busy", "false", {
+        timeout: 30_000,
+      });
+    }
+    await expect(page.locator("main canvas")).toBeVisible();
+    expect(errors.filter(isFatal)).toEqual([]);
+  });
+
   test("states: each view keeps its layout; the state view's is a nested map of its modules", async ({
     page,
   }) => {
@@ -474,7 +532,9 @@ test.describe("Network Navigator smoke", () => {
     const changes = await watchBusy(page);
     const physical = await settledLabels("alpha");
     await show("state");
-    const state = await settledLabels("alpha-1");
+    // Lumped by default (d3gl#529): the state view labels each lump by its
+    // physical node.
+    const state = await settledLabels("alpha");
     const stateCamera = await viewTransform(page);
     expect(stateCamera).not.toEqual(camera); // framed by its own first layout
     await show("physical");
@@ -483,7 +543,7 @@ test.describe("Network Navigator smoke", () => {
     await show("both");
     expect(await viewTransform(page)).toEqual(camera);
     await show("state");
-    expect(await settledLabels("alpha-1")).toEqual(state);
+    expect(await settledLabels("alpha")).toEqual(state);
     expect(await changes()).toBe(0);
     expect(await viewTransform(page)).toEqual(stateCamera);
     await expect(page.locator("main [aria-busy]")).toHaveAttribute(

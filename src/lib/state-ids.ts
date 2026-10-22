@@ -1,4 +1,8 @@
-import type { ModuleNode, PhysicalToState } from "@mapequation/d3gl/network";
+import type {
+  LumpedStateNetwork,
+  ModuleNode,
+  PhysicalToState,
+} from "@mapequation/d3gl/network";
 
 /** The views of a state network (d3gl's `view()`). */
 export type StateView = "physical" | "state" | "both";
@@ -6,21 +10,32 @@ export type StateView = "physical" | "state" | "both";
 /**
  * The ids the engine draws a set of state nodes by in `view`: the state ids
  * themselves in the state and both views (both draws the state nodes, inside
- * their physical containers), their distinct physical nodes in the physical
- * view. The store keeps a state network's ids as state ids.
+ * their physical containers), or their distinct lumps when lumped
+ * (`stateToLump`, d3gl#529), and their distinct physical nodes in the
+ * physical view. The store keeps a state network's ids as state ids.
  */
 export function viewIds(
   stateIds: readonly number[],
   view: StateView,
   stateToPhysical: ArrayLike<number>,
+  stateToLump?: ArrayLike<number> | null,
 ): readonly number[] {
-  if (view !== "physical") return stateIds;
-  const physical = new Set<number>();
+  const to = view === "physical" ? stateToPhysical : stateToLump;
+  if (!to) return stateIds;
+  const out = new Set<number>();
   for (const s of stateIds) {
-    const p = stateToPhysical[s];
-    if (p !== undefined) physical.add(p);
+    const v = to[s];
+    if (v !== undefined) out.add(v);
   }
-  return [...physical];
+  return [...out];
+}
+
+/** The state nodes of a lumped network's lumps `lumpIds` (d3gl#529). */
+export function lumpStates(
+  lumped: LumpedStateNetwork,
+  lumpIds: readonly number[],
+): number[] {
+  return lumpIds.flatMap((l) => statesOf(lumped.lumpToState, l));
 }
 
 /** Physical node `p`'s state nodes. */

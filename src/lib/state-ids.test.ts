@@ -1,6 +1,6 @@
-import { buildStateGraph } from "@mapequation/d3gl/network";
+import { buildStateGraph, lumpStateGraph } from "@mapequation/d3gl/network";
 import { describe, expect, it } from "vitest";
-import { physicalModule, statesOf, viewIds } from "./state-ids";
+import { lumpStates, physicalModule, statesOf, viewIds } from "./state-ids";
 
 // Five state nodes over three physical nodes: 0 → {0, 1}, 1 → {2}, 2 → {3, 4}.
 const sg = buildStateGraph({
@@ -62,5 +62,30 @@ describe("physicalModule", () => {
 
   it("is none without module records", () => {
     expect(physicalModule(sg.physicalToState, 0, [])).toEqual([]);
+  });
+});
+
+describe("lumped ids (d3gl#529)", () => {
+  // States 0 and 1 share physical 0 and leaf module [1]; 3 and 4 share
+  // physical 2 but sit in leaf modules [1] and [2]. Lumps: {0, 1}, {2}, {3}, {4}.
+  const lumped = lumpStateGraph(sg, [
+    { id: 0, path: [1, 1] },
+    { id: 1, path: [1, 2] },
+    { id: 2, path: [2, 1] },
+    { id: 3, path: [1, 3] },
+    { id: 4, path: [2, 2] },
+  ]);
+
+  it("maps state ids to their distinct lumps in the state and both views", () => {
+    const to = lumped.stateToLump;
+    expect(viewIds([0, 1, 4], "state", sg.stateToPhysical, to)).toEqual([0, 3]);
+    expect(viewIds([0, 1, 4], "both", sg.stateToPhysical, to)).toEqual([0, 3]);
+    expect(viewIds([0, 1, 4], "physical", sg.stateToPhysical, to)).toEqual([
+      0, 2,
+    ]);
+  });
+
+  it("maps lumps back to their state nodes", () => {
+    expect(lumpStates(lumped, [0, 3])).toEqual([0, 1, 4]);
   });
 });
