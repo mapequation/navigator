@@ -42,7 +42,7 @@ async function loadExample(page: Page): Promise<void> {
   await expect(
     page.getByRole("heading", { name: "Load network" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Load example" }).click();
+  await page.getByRole("button", { name: "Citation network" }).click();
   await expect(
     page.getByRole("heading", { name: "Load network" }),
   ).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
@@ -199,6 +199,30 @@ test.describe("Network Navigator smoke", () => {
     await expect(page.getByText(/^\d+ match(es)?$/)).toBeVisible();
 
     await screenshot(page, "example");
+    expect(errors.filter(isFatal)).toEqual([]);
+  });
+
+  test("example: Les Misérables loads as a raw state network", async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText(".ftree", { exact: true })).toBeVisible();
+    await expect(dialog.getByText(".net", { exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "Les Misérables" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Load network" }),
+    ).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
+    await expect(page.locator("main canvas")).toBeVisible({ timeout: 30_000 });
+
+    // States, and no modules until Infomap runs.
+    await expect(
+      page.getByRole("radiogroup", { name: "State view" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Not clustered yet. Run Infomap to find modules."),
+    ).toBeVisible();
     expect(errors.filter(isFatal)).toEqual([]);
   });
 
@@ -790,7 +814,7 @@ test.describe("Network Navigator smoke", () => {
     await dialog.getByRole("button", { name: "Close" }).click();
     await expect(heading).toBeHidden();
     await openFromEmpty.click();
-    await dialog.getByRole("button", { name: "Load example" }).click();
+    await dialog.getByRole("button", { name: "Citation network" }).click();
     await expect(heading).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
     await expect(view).toHaveAttribute(
       "data-layout-transport",
