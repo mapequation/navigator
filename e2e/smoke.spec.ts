@@ -131,7 +131,11 @@ const DEFAULT_FILL = "#4878d0";
  * links, borders and labels. Read from a screenshot, as the WebGL canvas
  * keeps no drawing buffer to read back. */
 async function nodeColors(page: Page): Promise<string[]> {
-  const png = await page.locator("main canvas").first().screenshot();
+  // The top bar floats over the canvas: its coloured controls are not nodes.
+  const png = await page
+    .locator("main canvas")
+    .first()
+    .screenshot({ style: "[data-overlay] { visibility: hidden; }" });
   return page.evaluate(async (b64) => {
     const blob = await (await fetch(`data:image/png;base64,${b64}`)).blob();
     const bitmap = await createImageBitmap(blob);
@@ -192,7 +196,7 @@ test.describe("Network Navigator smoke", () => {
 
     const search = page.getByRole("textbox", { name: "Search nodes" });
     await search.fill("PHYS");
-    await expect(page.getByText(/\d+ matching nodes highlighted/)).toBeVisible();
+    await expect(page.getByText(/^\d+ match(es)?$/)).toBeVisible();
 
     await screenshot(page, "example");
     expect(errors.filter(isFatal)).toEqual([]);
@@ -263,9 +267,11 @@ test.describe("Network Navigator smoke", () => {
     await expect(flowColors).toBeChecked();
     await expect(view).toHaveAttribute("data-flow-borders", "true");
 
-    // Breadcrumb overlay shows the filename once modules exist.
+    // The top bar's module path shows once modules exist.
     await expect(
-      page.locator("nav").getByRole("button", { name: "toy.net" }),
+      page
+        .getByRole("navigation", { name: "Module path" })
+        .getByRole("button", { name: "Whole network" }),
     ).toBeVisible();
 
     // In-app runs export Infomap's JSON tree (no ftree is written).

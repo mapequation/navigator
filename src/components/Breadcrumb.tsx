@@ -16,17 +16,33 @@ export const Breadcrumb = observer(function Breadcrumb() {
     store.breadcrumb.slice(0, k + 1),
   );
 
+  // The root is the whole network; its filename is in the sidebar's Data section.
   return (
-    <nav className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md bg-white/85 px-2 py-1 text-sm shadow-sm backdrop-blur">
+    <nav
+      aria-label="Module path"
+      className="flex flex-wrap items-center gap-1 text-sm"
+    >
       <Button
         size="sm"
         variant="ghost"
+        isIconOnly
+        aria-label="Whole network"
         onPress={() => {
           store.resetView();
           store.zoomTo?.(null);
         }}
       >
-        {cur.filename}
+        <svg
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinejoin="round"
+        >
+          <path d="M2.5 7.5 8 3l5.5 4.5M4 6.5V13h3V9.5h2V13h3V6.5" />
+        </svg>
       </Button>
       {crumbs.map((path) => (
         <span key={pathKey(path)} className="flex items-center gap-1">

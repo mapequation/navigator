@@ -6,7 +6,6 @@ import type {
   ColorBy,
   ColorHue,
   LayoutBackend,
-  LodMode,
 } from "../../stores/settings-store";
 import { Group, Row, Segmented, Toggle } from "./controls";
 
@@ -242,39 +241,6 @@ export const DisplayPanel = observer(function DisplayPanel() {
 
   return (
     <>
-      {(!cur || cur.isStates) && (
-        <Row label="State view">
-          <Segmented
-            label="State view"
-            value={settings.stateView}
-            options={["physical", "state", "both"] as const}
-            onChange={(v) => settings.set("stateView", v)}
-          />
-        </Row>
-      )}
-      {(!cur || cur.isStates) && (
-        <Row
-          label="Lump states"
-          hint="A network with modules: one node per physical node in each module, as the map equation codes them"
-        >
-          <Toggle
-            label="Lump states"
-            isSelected={settings.lumpStates}
-            onChange={(on) => settings.set("lumpStates", on)}
-          />
-        </Row>
-      )}
-      <Row
-        label="Sizes in"
-        hint="screen: constant pixels at any zoom · world: scales with zoom"
-      >
-        <Segmented
-          label="Size mode"
-          value={settings.sizeMode}
-          options={["screen", "world"] as const}
-          onChange={(v) => settings.set("sizeMode", v)}
-        />
-      </Row>
       <Group title="Nodes">
         <Row label="Size by">
           <Segmented
@@ -439,17 +405,6 @@ export const LodPanel = observer(function LodPanel() {
   const off = settings.lodMode === "off";
   return (
     <>
-      <Row
-        label="Aggregate by"
-        hint="modules: the Infomap module tree (spatial without one) · spatial: nearby nodes"
-      >
-        <Segmented
-          label="LOD mode"
-          value={settings.lodMode}
-          options={["modules", "spatial", "off"] as const satisfies LodMode[]}
-          onChange={(v) => settings.set("lodMode", v)}
-        />
-      </Row>
       <SliderRow
         label="Expand at"
         value={settings.expandPx ?? 48}
