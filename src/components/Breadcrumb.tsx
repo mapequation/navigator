@@ -44,19 +44,26 @@ export const Breadcrumb = observer(function Breadcrumb() {
           <path d="M2.5 7.5 8 3l5.5 4.5M4 6.5V13h3V9.5h2V13h3V6.5" />
         </svg>
       </Button>
-      {crumbs.map((path) => (
-        <span key={pathKey(path)} className="flex items-center gap-1">
-          <span className="text-neutral-400">›</span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onPress={() => store.zoomTo?.(store.leavesOfModule(path))}
-          >
-            {cur.moduleNames?.get(pathKey(path)) ??
-              store.moduleName(path, store.leavesOfModule(path))}
-          </Button>
-        </span>
-      ))}
+      {crumbs.map((path) => {
+        const name =
+          cur.moduleNames?.get(pathKey(path)) ??
+          store.moduleName(path, store.leavesOfModule(path));
+        return (
+          <span key={pathKey(path)} className="flex items-center gap-1">
+            <span className="text-neutral-400">›</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => store.zoomTo?.(store.leavesOfModule(path))}
+            >
+              {/* A long name ends in an ellipsis; hover shows it whole. */}
+              <span className="max-w-48 min-w-0 truncate" title={name}>
+                {name}
+              </span>
+            </Button>
+          </span>
+        );
+      })}
     </nav>
   );
 });
