@@ -295,46 +295,7 @@ export const LoadModal = observer(function LoadModal() {
               )}
             </div>
 
-            <div className="flex flex-col gap-2 text-sm">
-              <p className="text-xs text-neutral-500">Or load an example:</p>
-              <ul className="grid grid-cols-[auto_auto_1fr] items-center gap-2">
-                {[
-                  {
-                    label: "Citation network",
-                    ext: ".ftree",
-                    about: "An Infomap result, with its modules",
-                    read: readCitation,
-                  },
-                  {
-                    label: "Les Misérables",
-                    ext: ".net",
-                    about:
-                      "A state network without modules: run Infomap in the Modules panel",
-                    read: readLesMiserables,
-                  },
-                ].map((ex) => (
-                  <li
-                    key={ex.label}
-                    className="col-span-3 grid grid-cols-subgrid items-center"
-                  >
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      isPending={loading}
-                      isDisabled={ui.infomapRunning}
-                      onPress={() => loadExample(ex.read)}
-                    >
-                      {ex.label}
-                    </Button>
-                    <Chip size="sm">{ex.ext}</Chip>
-                    <span className="min-w-0 text-xs text-neutral-500">
-                      {ex.about}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
+            {/* Options for the dropped files; the examples load as they are. */}
             <div className="flex flex-col gap-2 text-sm">
               <Switch isSelected={directed} onChange={setDirected}>
                 <Switch.Content>
@@ -374,6 +335,55 @@ export const LoadModal = observer(function LoadModal() {
                   </div>
                 </>
               )}
+            </div>
+
+            <div className="flex flex-col gap-2 text-sm">
+              <p className="text-xs text-neutral-500">Or load an example:</p>
+              <ul className="grid grid-cols-[auto_auto_1fr] items-center gap-2">
+                {[
+                  {
+                    label: "Citation network",
+                    ext: ".ftree",
+                    about: (
+                      <>
+                        An Infomap result, with <strong>hierarchical</strong>{" "}
+                        modules
+                      </>
+                    ),
+                    read: readCitation,
+                  },
+                  {
+                    label: "Les Misérables",
+                    ext: ".net",
+                    about: (
+                      <>
+                        A <strong>state</strong> network without modules: run
+                        Infomap in the Modules panel
+                      </>
+                    ),
+                    read: readLesMiserables,
+                  },
+                ].map((ex) => (
+                  <li
+                    key={ex.label}
+                    className="col-span-3 grid grid-cols-subgrid items-center"
+                  >
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      isPending={loading}
+                      isDisabled={ui.infomapRunning}
+                      onPress={() => loadExample(ex.read)}
+                    >
+                      {ex.label}
+                    </Button>
+                    <Chip size="sm">{ex.ext}</Chip>
+                    <span className="min-w-0 text-xs text-neutral-500">
+                      {ex.about}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {(ui.infomapRunning || ranInfomap) && (

@@ -75,9 +75,9 @@ export const HelpModal = observer(function HelpModal() {
               </List>
               <p className="text-sm text-neutral-600">
                 The examples are a citation network, an <code>.ftree</code> with
-                its modules, and Les Misérables, a <code>.net</code> state
-                network without modules, for you to run Infomap on. Open from
-                Infomap Online loads a network you ran there. See the{" "}
+                hierarchical modules, and Les Misérables, a <code>.net</code>{" "}
+                state network without modules, for you to run Infomap on. Open
+                from Infomap Online loads a network you ran there. See the{" "}
                 <Link href="https://mapequation.org/infomap/">
                   Infomap documentation
                 </Link>{" "}
