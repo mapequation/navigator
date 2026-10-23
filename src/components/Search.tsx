@@ -1,11 +1,20 @@
-import { SearchField } from "@heroui/react";
+import { Kbd, SearchField } from "@heroui/react";
 import { observer } from "mobx-react-lite";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStores } from "../stores";
+
+/** On a Mac, Cmd+K focuses the search, elsewhere Ctrl+K, as on documentation sites. */
+const MAC =
+  typeof navigator !== "undefined" &&
+  /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** The search shortcut as its key cap reads. */
+export const SEARCH_SHORTCUT = MAC ? "⌘K" : "Ctrl K";
 
 export const Search = observer(function Search() {
   const { network: store } = useStores();
   const [query, setQuery] = useState("");
+  const input = useRef<HTMLInputElement>(null);
   const update = (value: string): void => {
     setQuery(value);
     store.setSearch(value);
@@ -14,6 +23,19 @@ export const Search = observer(function Search() {
   // Enter or the search icon shows them again.
   const search = (): void => store.setSearch(query);
   const matches = store.searchShown ? store.searchHighlight?.length : undefined;
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent): void => {
+      if (ev.key.toLowerCase() !== "k" || !(MAC ? ev.metaKey : ev.ctrlKey))
+        return;
+      ev.preventDefault();
+      input.current?.focus();
+      input.current?.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <div className="flex items-center gap-2">
       <SearchField
@@ -36,10 +58,15 @@ export const Search = observer(function Search() {
             <SearchField.SearchIcon className="m-0 text-current" />
           </button>
           <SearchField.Input
+            ref={input}
             placeholder="Find nodes…"
             className="min-w-0 px-2 py-1 text-xs"
           />
-          <SearchField.ClearButton />
+          {query ? (
+            <SearchField.ClearButton />
+          ) : (
+            <Kbd className="mr-1.5 shrink-0 text-[10px]">{SEARCH_SHORTCUT}</Kbd>
+          )}
         </SearchField.Group>
       </SearchField>
       {matches !== undefined && (
