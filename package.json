@@ -1,6 +1,6 @@
 {
   "name": "network-navigator",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "private": true,
   "type": "module",
   "homepage": "/navigator",
@@ -17,7 +17,7 @@
     "@heroui/react": "^3.2.1",
     "@heroui/styles": "^3.2.1",
     "@mapequation/c3": "^2.0.1",
-    "@mapequation/d3gl": "^0.12.1",
+    "@mapequation/d3gl": "^0.12.2",
     "@mapequation/infomap": "^2.14.0",
     "@mapequation/infomap-parser": "^1.0.2",
     "d3-scale": "^4.0.2",
