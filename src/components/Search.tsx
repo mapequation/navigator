@@ -65,7 +65,11 @@ export const Search = observer(function Search() {
           {query ? (
             <SearchField.ClearButton />
           ) : (
-            <Kbd className="mr-1.5 shrink-0 text-[10px]">{SEARCH_SHORTCUT}</Kbd>
+            // As quiet as the placeholder (the browser's: the text colour at
+            // half opacity) and its weight, on a lighter cap.
+            <Kbd className="mr-1.5 h-5 shrink-0 rounded-md bg-default/50 px-1.5 text-[10px] font-normal text-field-foreground/50">
+              {SEARCH_SHORTCUT}
+            </Kbd>
           )}
         </SearchField.Group>
       </SearchField>
