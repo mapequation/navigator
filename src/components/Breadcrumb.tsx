@@ -10,13 +10,14 @@ import { useStores } from "../stores";
 export const Breadcrumb = observer(function Breadcrumb() {
   const { network: store } = useStores();
   const cur = store.current;
-  if (!cur?.modules) return null;
 
+  // Without modules the path is empty.
   const crumbs = store.breadcrumb.map((_, k) =>
     store.breadcrumb.slice(0, k + 1),
   );
 
-  // The root is the whole network; its filename is in the sidebar's Data section.
+  // The root fits the whole network, modules or not; its filename is in the
+  // sidebar's Data section.
   return (
     <nav
       aria-label="Module path"
@@ -27,6 +28,7 @@ export const Breadcrumb = observer(function Breadcrumb() {
         variant="ghost"
         isIconOnly
         aria-label="Whole network"
+        isDisabled={!cur}
         onPress={() => {
           store.resetView();
           store.zoomTo?.(null);
@@ -46,7 +48,7 @@ export const Breadcrumb = observer(function Breadcrumb() {
       </Button>
       {crumbs.map((path) => {
         const name =
-          cur.moduleNames?.get(pathKey(path)) ??
+          cur?.moduleNames?.get(pathKey(path)) ??
           store.moduleName(path, store.leavesOfModule(path));
         return (
           <span key={pathKey(path)} className="flex items-center gap-1">

@@ -15,8 +15,7 @@ const PANEL =
  * view settings on the right. The settings keep the first row; when both
  * don't fit, the left side wraps below them.
  */
-export const TopBar = observer(function TopBar() {
-  const { network: store } = useStores();
+export function TopBar() {
   // `pointer-events-none`: the canvas between the panels stays clickable.
   return (
     <div
@@ -24,15 +23,14 @@ export const TopBar = observer(function TopBar() {
       className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-row-reverse flex-wrap items-start gap-2"
     >
       <ViewSettings />
-      {store.current && (
-        <div className={`${PANEL} mr-auto`}>
-          <Breadcrumb />
-          <Search />
-        </div>
-      )}
+      {/* There from the start, so the bar doesn't change shape on a load. */}
+      <div className={`${PANEL} mr-auto`}>
+        <Breadcrumb />
+        <Search />
+      </div>
     </div>
   );
-});
+}
 
 /** Settings with or without a network: set before a load, they apply to it. */
 const ViewSettings = observer(function ViewSettings() {

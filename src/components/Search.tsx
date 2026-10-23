@@ -18,6 +18,7 @@ export const Search = observer(function Search() {
     <div className="flex items-center gap-2">
       <SearchField
         aria-label="Search nodes"
+        isDisabled={!store.current}
         value={query}
         onChange={update}
         onSubmit={search}
@@ -28,8 +29,9 @@ export const Search = observer(function Search() {
           <button
             type="button"
             aria-label="Search"
+            disabled={!store.current}
             onClick={search}
-            className="ml-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 outline-none hover:bg-neutral-100 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="ml-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 outline-none hover:bg-neutral-100 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-neutral-500"
           >
             <SearchField.SearchIcon className="m-0 text-current" />
           </button>

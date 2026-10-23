@@ -267,7 +267,7 @@ test.describe("Network Navigator smoke", () => {
     await expect(flowColors).toBeChecked();
     await expect(view).toHaveAttribute("data-flow-borders", "true");
 
-    // The top bar's module path shows once modules exist.
+    // The top bar's home button fits the whole network.
     await expect(
       page
         .getByRole("navigation", { name: "Module path" })
