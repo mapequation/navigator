@@ -31,6 +31,8 @@ export class UiStore {
    */
   viewPhase: string | null = null;
   helpOpen = false;
+  /** Hidden, the canvas takes the sidebar's width; the sidebar keeps its state. */
+  sidebarOpen = true;
   consoleOpen = false;
   infomapRunning = false;
   /** Command line of the last Infomap run; null until one starts. */
@@ -99,6 +101,9 @@ export class UiStore {
   };
   setHelpOpen = (open: boolean): void => {
     this.helpOpen = open;
+  };
+  toggleSidebar = (): void => {
+    this.sidebarOpen = !this.sidebarOpen;
   };
   setConsoleOpen = (open: boolean): void => {
     this.consoleOpen = open;

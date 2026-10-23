@@ -169,6 +169,8 @@ export class NetworkStore {
   current: LoadedNetwork | null = null;
   selection: SelectionInfo | null = null;
   searchHighlight: number[] | null = null;
+  /** Whether the view shows the search's matches: a click's selection replaces them. */
+  searchShown = false;
   occurrenceFiles: OccurrenceFile[] = [];
   breadcrumb: number[] = [];
   maxFlow = 0;
@@ -256,6 +258,7 @@ export class NetworkStore {
     this.current = net;
     this.selection = null;
     this.searchHighlight = null;
+    this.searchShown = false;
     this.occurrenceFiles = [];
     this.breadcrumb = [];
     const max = maximaOf(g);
@@ -293,6 +296,7 @@ export class NetworkStore {
     this.builtState = null;
     this.selection = null;
     this.searchHighlight = null;
+    this.searchShown = false;
     this.occurrenceFiles = [];
     this.breadcrumb = [];
     this.maxFlow = 0;
@@ -320,6 +324,7 @@ export class NetworkStore {
    * its state nodes the members.
    */
   selectLump(l: number): void {
+    this.searchShown = false;
     const cur = this.current;
     const lumped = this.lumped;
     if (!cur || !lumped) return;
@@ -371,6 +376,7 @@ export class NetworkStore {
 
   clearSelection(): void {
     this.selection = null;
+    this.searchShown = false;
   }
 
   resetView(): void {
@@ -389,6 +395,7 @@ export class NetworkStore {
     members: number[] | null,
     physical: number | null = null,
   ): void {
+    this.searchShown = false;
     const cur = this.current;
     if (!cur) return;
     const nodeFlow = cur.graph.nodeFlow as Float32Array | undefined;
@@ -496,6 +503,7 @@ export class NetworkStore {
     const q = query.trim().toLowerCase();
     if (!cur || !q) {
       this.searchHighlight = null;
+      this.searchShown = false;
       return;
     }
     const ids: number[] = [];
@@ -503,6 +511,7 @@ export class NetworkStore {
       if (cur.names[i].toLowerCase().includes(q)) ids.push(i);
     }
     this.searchHighlight = ids;
+    this.searchShown = true;
   }
 
   /** Add a metadata file: its node names (see parseNodeNames) matched against the network's. */

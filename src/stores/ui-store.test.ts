@@ -78,3 +78,14 @@ describe("UiStore Infomap console", () => {
     expect(ui.infomapProgress).toBeNull();
   });
 });
+
+describe("UiStore sidebar", () => {
+  it("starts open and toggles", () => {
+    const ui = new UiStore();
+    expect(ui.sidebarOpen).toBe(true);
+    ui.toggleSidebar();
+    expect(ui.sidebarOpen).toBe(false);
+    ui.toggleSidebar();
+    expect(ui.sidebarOpen).toBe(true);
+  });
+});

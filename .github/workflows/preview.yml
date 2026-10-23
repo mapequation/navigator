@@ -1,0 +1,41 @@
+name: PR preview
+
+# Each pull request from this repo gets a preview on surge.sh, rebuilt on every push, and a comment
+# with its link: https://mapequation-navigator-preview-pr-<number>.surge.sh (the job name is part of
+# it). The preview is torn down when the pull request closes. Pull requests from forks don't get one:
+# their runs can't read the SURGE_TOKEN secret.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# A newer push replaces a deploy still running; a close tears down after it.
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # The site is served from the root of its surge domain, not /navigator/.
+      - uses: afc163/surge-preview@v1.13.0
+        with:
+          surge_token: ${{ secrets.SURGE_TOKEN }}
+          dist: dist
+          teardown: "true"
+          failOnError: "true"
+          build: |
+            pnpm install --frozen-lockfile
+            pnpm build --base /

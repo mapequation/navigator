@@ -1,12 +1,12 @@
 import { observer } from "mobx-react-lite";
 import { useEffect } from "react";
-import { Breadcrumb } from "./components/Breadcrumb";
 import { EmptyState } from "./components/EmptyState";
 import { HelpModal } from "./components/HelpModal";
 import { InfomapConsole } from "./components/InfomapConsole";
 import { LoadModal } from "./components/LoadModal";
 import { NetworkView } from "./components/NetworkView";
 import { Sidebar } from "./components/Sidebar/Sidebar";
+import { TopBar } from "./components/TopBar";
 import { ftreeToNetwork } from "./lib/ftree-graph";
 import { loadInfomapOnline } from "./lib/infomap-online";
 import { useStores } from "./stores";
@@ -57,14 +57,8 @@ const App = observer(function App() {
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       <main className="relative min-w-0 flex-1">
-        {store.current ? (
-          <>
-            <NetworkView />
-            <Breadcrumb />
-          </>
-        ) : (
-          <EmptyState />
-        )}
+        {store.current ? <NetworkView /> : <EmptyState />}
+        <TopBar />
       </main>
       <Sidebar />
       <LoadModal />

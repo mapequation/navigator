@@ -98,6 +98,22 @@ describe("NetworkStore", () => {
     expect(store.searchHighlight).toBeNull();
   });
 
+  it("a click's selection hides the search matches until the search runs again", () => {
+    const store = new NetworkStore();
+    store.setNetwork(toy());
+    store.setSearch("AL");
+    expect(store.searchShown).toBe(true);
+    store.selectFromHit(1, false, null);
+    expect(store.searchShown).toBe(false);
+    expect(store.searchHighlight).toEqual([0]);
+    store.setSearch("AL");
+    expect(store.searchShown).toBe(true);
+    store.clearSelection();
+    expect(store.searchShown).toBe(false);
+    store.setSearch("");
+    expect(store.searchShown).toBe(false);
+  });
+
   it("matches occurrence values against names", () => {
     const store = new NetworkStore();
     store.setNetwork(toy());
