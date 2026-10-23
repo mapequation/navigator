@@ -117,24 +117,41 @@ export const LoadModal = observer(function LoadModal() {
     return res;
   };
 
-  const loadExample = async (): Promise<void> => {
+  /** Load a one-click example, served from public/. */
+  const loadExample = async (
+    read: () => Promise<LoadedNetwork>,
+  ): Promise<void> => {
     setBusy(true);
     try {
-      const base = import.meta.env.BASE_URL;
-      const [ftree, names] = await Promise.all([
-        fetchOk(`${base}citation_data.ftree`).then((r) => r.text()),
-        fetchOk(`${base}citation_module_names.json`).then(
-          (r) => r.json() as Promise<Record<string, string>>,
-        ),
-      ]);
-      const net = ftreeToNetwork(ftree, "citation_data.ftree");
-      net.moduleNames = new Map(Object.entries(names));
-      await finish(net);
+      await finish(await read());
     } catch (err) {
       fail(err);
     } finally {
       setBusy(false);
     }
+  };
+  const base = import.meta.env.BASE_URL;
+  /** A citation network: an .ftree, with curated module names. */
+  const readCitation = async (): Promise<LoadedNetwork> => {
+    const [ftree, names] = await Promise.all([
+      fetchOk(`${base}citation_data.ftree`).then((r) => r.text()),
+      fetchOk(`${base}citation_module_names.json`).then(
+        (r) => r.json() as Promise<Record<string, string>>,
+      ),
+    ]);
+    const net = ftreeToNetwork(ftree, "citation_data.ftree");
+    net.moduleNames = new Map(Object.entries(names));
+    return net;
+  };
+  /** A state network, loaded as if dropped alone: raw, until Infomap runs. */
+  const readLesMiserables = async (): Promise<LoadedNetwork> => {
+    const name = "Les_Miserables.net";
+    const text = await fetchOk(`${base}${name}`).then((r) => r.text());
+    return loadFiles([{ name, text }], {
+      directed: false,
+      twoLevel: false,
+      noInfomap: false,
+    });
   };
 
   const loadOnline = async (): Promise<void> => {
@@ -279,6 +296,46 @@ export const LoadModal = observer(function LoadModal() {
             </div>
 
             <div className="flex flex-col gap-2 text-sm">
+              <p className="text-xs text-neutral-500">Or load an example:</p>
+              <ul className="grid grid-cols-[auto_auto_1fr] items-center gap-2">
+                {[
+                  {
+                    label: "Citation network",
+                    ext: ".ftree",
+                    about: "An Infomap result, with its modules",
+                    read: readCitation,
+                  },
+                  {
+                    label: "Les Misérables",
+                    ext: ".net",
+                    about:
+                      "A state network without modules: run Infomap in the Modules panel",
+                    read: readLesMiserables,
+                  },
+                ].map((ex) => (
+                  <li
+                    key={ex.label}
+                    className="col-span-3 grid grid-cols-subgrid items-center"
+                  >
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      isPending={loading}
+                      isDisabled={ui.infomapRunning}
+                      onPress={() => loadExample(ex.read)}
+                    >
+                      {ex.label}
+                    </Button>
+                    <Chip size="sm">{ex.ext}</Chip>
+                    <span className="min-w-0 text-xs text-neutral-500">
+                      {ex.about}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="flex flex-col gap-2 text-sm">
               <Switch isSelected={directed} onChange={setDirected}>
                 <Switch.Content>
                   <Switch.Control>
@@ -360,14 +417,6 @@ export const LoadModal = observer(function LoadModal() {
             )}
           </Modal.Body>
           <Modal.Footer className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              isPending={loading}
-              isDisabled={ui.infomapRunning}
-              onPress={loadExample}
-            >
-              Load example
-            </Button>
             <Button
               variant="secondary"
               isPending={loading}
