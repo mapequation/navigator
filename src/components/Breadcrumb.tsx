@@ -10,37 +10,62 @@ import { useStores } from "../stores";
 export const Breadcrumb = observer(function Breadcrumb() {
   const { network: store } = useStores();
   const cur = store.current;
-  if (!cur?.modules) return null;
 
+  // Without modules the path is empty.
   const crumbs = store.breadcrumb.map((_, k) =>
     store.breadcrumb.slice(0, k + 1),
   );
 
+  // The root fits the whole network, modules or not; its filename is in the
+  // sidebar's Data section.
   return (
-    <nav className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md bg-white/85 px-2 py-1 text-sm shadow-sm backdrop-blur">
+    <nav
+      aria-label="Module path"
+      className="flex flex-wrap items-center gap-1 text-sm"
+    >
       <Button
         size="sm"
         variant="ghost"
+        isIconOnly
+        aria-label="Whole network"
+        isDisabled={!cur}
         onPress={() => {
           store.resetView();
           store.zoomTo?.(null);
         }}
       >
-        {cur.filename}
+        <svg
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinejoin="round"
+        >
+          <path d="M2.5 7.5 8 3l5.5 4.5M4 6.5V13h3V9.5h2V13h3V6.5" />
+        </svg>
       </Button>
-      {crumbs.map((path) => (
-        <span key={pathKey(path)} className="flex items-center gap-1">
-          <span className="text-neutral-400">›</span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onPress={() => store.zoomTo?.(store.leavesOfModule(path))}
-          >
-            {cur.moduleNames?.get(pathKey(path)) ??
-              store.moduleName(path, store.leavesOfModule(path))}
-          </Button>
-        </span>
-      ))}
+      {crumbs.map((path) => {
+        const name =
+          cur?.moduleNames?.get(pathKey(path)) ??
+          store.moduleName(path, store.leavesOfModule(path));
+        return (
+          <span key={pathKey(path)} className="flex items-center gap-1">
+            <span className="text-neutral-400">›</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => store.zoomTo?.(store.leavesOfModule(path))}
+            >
+              {/* A long name ends in an ellipsis; hover shows it whole. */}
+              <span className="max-w-48 min-w-0 truncate" title={name}>
+                {name}
+              </span>
+            </Button>
+          </span>
+        );
+      })}
     </nav>
   );
 });

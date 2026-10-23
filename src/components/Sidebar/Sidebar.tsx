@@ -8,7 +8,6 @@ import { Export } from "./Export";
 import { Header } from "./Header";
 import { MetadataOverlap } from "./MetadataOverlap";
 import { ModulesPanel } from "./ModulesPanel";
-import { Search } from "./Search";
 import { SelectedNode } from "./SelectedNode";
 import {
   ColorPanel,
@@ -45,9 +44,6 @@ export const Sidebar = observer(function Sidebar() {
             aside={ui.infomapRunning ? "running…" : undefined}
           >
             <ModulesPanel />
-          </Section>
-          <Section title="Search">
-            <Search />
           </Section>
           <Section
             title={
