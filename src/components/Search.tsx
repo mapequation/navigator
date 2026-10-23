@@ -1,4 +1,4 @@
-import { Input } from "@heroui/react";
+import { SearchField } from "@heroui/react";
 import { observer } from "mobx-react-lite";
 import { useState } from "react";
 import { useStores } from "../stores";
@@ -10,16 +10,36 @@ export const Search = observer(function Search() {
     setQuery(value);
     store.setSearch(value);
   };
-  const matches = store.searchHighlight?.length;
+  // A click's selection replaces the matches on screen; the query stays, so
+  // Enter or the search icon shows them again.
+  const search = (): void => store.setSearch(query);
+  const matches = store.searchShown ? store.searchHighlight?.length : undefined;
   return (
     <div className="flex items-center gap-2">
-      <Input
+      <SearchField
         aria-label="Search nodes"
-        placeholder="Find nodes…"
-        className="h-8 w-44 py-1 text-xs"
         value={query}
-        onChange={(e) => update(e.target.value)}
-      />
+        onChange={update}
+        onSubmit={search}
+      >
+        <SearchField.Group className="h-8 w-48">
+          {/* A plain button: a HeroUI one in a SearchField takes the field's
+              clear-button context, and would empty it too. */}
+          <button
+            type="button"
+            aria-label="Search"
+            onClick={search}
+            className="ml-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-500 outline-none hover:bg-neutral-100 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <SearchField.SearchIcon className="m-0 text-current" />
+          </button>
+          <SearchField.Input
+            placeholder="Find nodes…"
+            className="min-w-0 px-2 py-1 text-xs"
+          />
+          <SearchField.ClearButton />
+        </SearchField.Group>
+      </SearchField>
       {matches !== undefined && (
         <span
           className="text-xs whitespace-nowrap text-neutral-500"

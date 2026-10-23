@@ -194,7 +194,7 @@ test.describe("Network Navigator smoke", () => {
 
     await expect(page.getByText(/Powered by Infomap v/)).toBeVisible();
 
-    const search = page.getByRole("textbox", { name: "Search nodes" });
+    const search = page.getByRole("searchbox", { name: "Search nodes" });
     await search.fill("PHYS");
     await expect(page.getByText(/^\d+ match(es)?$/)).toBeVisible();
 
