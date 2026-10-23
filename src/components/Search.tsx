@@ -61,6 +61,11 @@ export const Search = observer(function Search() {
             ref={input}
             placeholder="Find nodes…"
             className="min-w-0 px-2 py-1 text-xs"
+            // Escape clears the field (SearchField) and leaves it, as a click
+            // outside would.
+            onKeyDown={(ev) => {
+              if (ev.key === "Escape") ev.currentTarget.blur();
+            }}
           />
           {query ? (
             <SearchField.ClearButton />

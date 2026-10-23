@@ -208,10 +208,14 @@ test.describe("Network Navigator smoke", () => {
     const errors = collectErrors(page);
     await loadExample(page);
 
+    const search = page.getByRole("searchbox", { name: "Search nodes" });
     await page.keyboard.press("ControlOrMeta+k");
-    await expect(
-      page.getByRole("searchbox", { name: "Search nodes" }),
-    ).toBeFocused();
+    await expect(search).toBeFocused();
+    // Escape clears the search and leaves it.
+    await page.keyboard.type("Nature");
+    await page.keyboard.press("Escape");
+    await expect(search).toHaveValue("");
+    await expect(search).not.toBeFocused();
 
     // The canvas takes the sidebar's width while it's hidden.
     const canvas = page.locator("main canvas");

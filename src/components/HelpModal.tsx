@@ -37,11 +37,6 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 const KEYS: [ReactNode, string][] = [
   [<Kbd key="l">L</Kbd>, "Load a network"],
   [<Kbd key="k">{SEARCH_SHORTCUT}</Kbd>, "Search nodes"],
-  [
-    <Kbd key="enter">Enter</Kbd>,
-    "Search again, after a click replaced the matches",
-  ],
-  [<Kbd key="esc">Esc</Kbd>, "Clear the search"],
 ];
 
 export const HelpModal = observer(function HelpModal() {
