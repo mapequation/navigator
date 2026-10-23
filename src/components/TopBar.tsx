@@ -1,3 +1,4 @@
+import { Button, Tooltip } from "@heroui/react";
 import { observer } from "mobx-react-lite";
 import type { ReactNode } from "react";
 import { useStores } from "../stores";
@@ -22,6 +23,7 @@ export function TopBar() {
       data-overlay
       className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-row-reverse flex-wrap items-start gap-2"
     >
+      <SidebarToggle />
       <ViewSettings />
       {/* There from the start, so the bar doesn't change shape on a load. */}
       <div className={`${PANEL} mr-auto`}>
@@ -31,6 +33,39 @@ export function TopBar() {
     </div>
   );
 }
+
+/** Shows or hides the sidebar, next to it; the canvas takes its width. */
+const SidebarToggle = observer(function SidebarToggle() {
+  const { ui } = useStores();
+  const label = ui.sidebarOpen ? "Hide sidebar" : "Show sidebar";
+  return (
+    <div className={PANEL}>
+      <Tooltip delay={300}>
+        <Button
+          isIconOnly
+          size="sm"
+          variant="ghost"
+          aria-label={label}
+          aria-expanded={ui.sidebarOpen}
+          onPress={ui.toggleSidebar}
+        >
+          <svg
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          >
+            <rect x="2" y="3" width="12" height="10" rx="1.5" />
+            <path d="M10 3v10" />
+          </svg>
+        </Button>
+        <Tooltip.Content>{label}</Tooltip.Content>
+      </Tooltip>
+    </div>
+  );
+});
 
 /** Settings with or without a network: set before a load, they apply to it. */
 const ViewSettings = observer(function ViewSettings() {
