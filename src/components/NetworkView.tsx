@@ -68,6 +68,8 @@ const LAYOUT = { fit: true } as const;
  *   size already, so it stays in view.
  * - A force layout streams from the nested map and glides out to the force
  *   model's own scale (about 3× wider) as it converges, framed as it grows.
+ *   It asks for `nested: false`: d3gl lays a network with modules out as
+ *   their nested map unless told otherwise (d3gl#566).
  * Either way d3gl eases the nodes from where they are toward each frame of
  * the solve as it lands, so the switch glides rather than steps.
  *
@@ -82,7 +84,7 @@ export function relayoutOf(
   recluster = false,
 ): Omit<NetworkLayoutOptions, "backend"> | null {
   if (!simulation || want === have) return null;
-  if (!want) return { fit: true, warm: true };
+  if (!want) return { nested: false, fit: true, warm: true };
   return recluster
     ? { nested: true, warm: true }
     : { nested: true, warm: true, fit: true };
@@ -366,15 +368,15 @@ export function buildLod(
 export const NetworkView = observer(function NetworkView() {
   const { network: store, settings, ui } = useStores();
   const hostRef = useRef<HTMLDivElement>(null);
-  const backend = settings.backend;
 
-  // One engine per host + backend. A load hands it new data; a re-clustering
-  // keeps its camera and positions (see NetworkStore.topologyVersion).
+  // One engine per host. A load hands it new data; a re-clustering keeps its
+  // camera and positions (see NetworkStore.topologyVersion); a render backend
+  // switch keeps everything (see the backend reaction below).
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
 
-    const net = network(host, { backend });
+    const net = network(host, { backend: settings.backend });
     store.engine = net;
 
     let colorFor: ArrayLike<ModuleNode> | undefined;
@@ -830,6 +832,13 @@ export const NetworkView = observer(function NetworkView() {
         (p) => net.pickLinks(p),
         { fireImmediately: true },
       ),
+      // A render backend switch keeps the engine, as d3gl's examples do: the
+      // network, style, camera and selection stay, and a running layout goes
+      // on where it was (d3gl#311).
+      reaction(
+        () => settings.backend,
+        (b) => net.setBackend(b),
+      ),
     ];
 
     return () => {
@@ -840,7 +849,7 @@ export const NetworkView = observer(function NetworkView() {
       if (store.engine === net) store.engine = null;
       net.destroy();
     };
-  }, [store, settings, ui, backend]);
+  }, [store, settings, ui]);
 
   return <div ref={hostRef} className="absolute inset-0" />;
 });

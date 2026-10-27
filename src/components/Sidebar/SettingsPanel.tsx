@@ -484,7 +484,7 @@ export const RenderingPanel = observer(function RenderingPanel() {
     <>
       <Row
         label="Render backend"
-        hint="Changing the backend recreates the view"
+        hint="Switching keeps the view and the layout"
       >
         <Select
           aria-label="Render backend"

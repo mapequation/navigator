@@ -976,6 +976,45 @@ test.describe("Network Navigator smoke", () => {
     expect(errors.filter(isFatal)).toEqual([]);
   });
 
+  test("render backend: a switch keeps the engine and its running layout", async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    const { view, chooseIdle, restart } = layoutControls(page);
+    await loadExample(page);
+
+    // On the GPU, whose run d3gl moves off the WebGL device it swaps out
+    // (d3gl#311).
+    await chooseIdle("gpu");
+    await restart();
+    // Read once, no retry: the switch below has to land while this layout runs.
+    expect(await view.getAttribute("aria-busy")).toBe("true");
+    const changes = await watchBusy(page);
+    await page.getByRole("button", { name: /Render backend/ }).click();
+    await page.getByRole("option", { name: "canvas" }).click();
+    // The engine now draws on a 2D canvas, and no layout started anew: a new
+    // engine would have laid the network out from scratch.
+    await expect
+      .poll(() =>
+        view
+          .locator("canvas")
+          .evaluateAll(
+            (cs) =>
+              cs.length === 1 &&
+              (cs[0] as HTMLCanvasElement).getContext("2d") !== null,
+          ),
+      )
+      .toBe(true);
+    expect(await changes()).toBe(0);
+    // The running layout goes on and lands.
+    await expect(view).toHaveAttribute("aria-busy", "false", {
+      timeout: 30_000,
+    });
+
+    await screenshot(page, "render-backend");
+    expect(errors.filter(isFatal)).toEqual([]);
+  });
+
   test("nested layout: switching it goes on from where the nodes are, both ways", async ({
     page,
   }) => {
