@@ -239,7 +239,13 @@ describe("relayoutOf", () => {
   });
 
   it("goes on from where the nodes are: the force layout, framed as it grows", () => {
-    expect(relayoutOf(false, true, true)).toEqual({ fit: true, warm: true });
+    // Flat, said outright: d3gl lays a network with modules out nested by
+    // default (d3gl#566).
+    expect(relayoutOf(false, true, true)).toEqual({
+      nested: false,
+      fit: true,
+      warm: true,
+    });
   });
 });
 
