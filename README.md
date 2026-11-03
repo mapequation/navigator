@@ -12,6 +12,12 @@ Published at [mapequation.org/navigator](https://www.mapequation.org/navigator/)
   `.tree`/`.clu` partitions (flow computed by Infomap, optionally `--no-infomap`).
 - Runs [Infomap](https://www.mapequation.org/infomap/) in the browser to
   cluster raw networks; opens results from Infomap Online.
+- `?netgamut=<key>` (e.g. `/navigator/?netgamut=netzschleuder/ambassador`)
+  opens a dataset from the [netgamut](https://github.com/mapequation/netgamut)
+  catalog's mirror, gzipped Pajek listed in
+  [`index.json`](https://raw.githubusercontent.com/mapequation/netgamut-networks/mirror/index.json),
+  without modules. Set `VITE_NETGAMUT_MIRROR` to another manifest URL to
+  develop against a local mirror.
 - Export ftree, SVG, PNG.
 
 ## Development

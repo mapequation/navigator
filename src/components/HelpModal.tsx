@@ -77,7 +77,12 @@ export const HelpModal = observer(function HelpModal() {
                 The examples are a citation network, an <code>.ftree</code> with
                 hierarchical modules, and Les Misérables, a <code>.net</code>{" "}
                 state network without modules, for you to run Infomap on. Open
-                from Infomap Online loads a network you ran there. See the{" "}
+                from Infomap Online loads a network you ran there. A{" "}
+                <code>?netgamut=&lt;key&gt;</code> link, as the{" "}
+                <Link href="https://github.com/mapequation/netgamut">
+                  netgamut
+                </Link>{" "}
+                catalog makes, opens that dataset without modules. See the{" "}
                 <Link href="https://mapequation.org/infomap/">
                   Infomap documentation
                 </Link>{" "}

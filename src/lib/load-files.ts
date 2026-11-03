@@ -117,16 +117,17 @@ export function networkToLoaded(
 /**
  * Parse a Pajek file or an edge list together with the node ids Infomap keys
  * its output by. One format decision drives both the parse and the ids:
- * - Pajek: the ids are the vertex numbers (the parser puts vertex v at dense
- *   index v - 1); the vertex labels are names, whatever they look like.
+ * - Pajek: the ids are the vertex numbers, read as Infomap reads them (0 and
+ *   gaps allowed; the parse returns them as `ids`); the vertex labels are
+ *   names, whatever they look like.
  * - Edge list: there are no names; each node token, read as an integer the way
  *   Infomap reads it, is the node's id. Infomap reads only integer ids, so a
  *   file with any other token has no ids. The parse keeps distinct tokens
  *   apart even when Infomap reads them as one id ("01" and "1"); withClustering
  *   reports such a pair.
- * The dispatch repeats d3gl's parseNetwork until the parse returns these ids
- * (mapequation/d3gl#408); d3gl's format choice differs from Infomap's for some
- * files (mapequation/d3gl#407).
+ * The dispatch repeats d3gl's parseNetwork until the edge-list parse returns
+ * these ids too (mapequation/d3gl#408); d3gl's format choice differs from
+ * Infomap's for some files (mapequation/d3gl#407).
  */
 function parseWithIds(
   text: string,
@@ -136,11 +137,7 @@ function parseWithIds(
   switch (format) {
     case "pajek": {
       const parsed = parsePajek(text);
-      const physicalIds = Array.from(
-        { length: parsed.nodeCount },
-        (_, i) => i + 1,
-      );
-      return { parsed, physicalIds };
+      return { parsed, physicalIds: parsed.ids && Array.from(parsed.ids) };
     }
     case "edgelist": {
       const parsed = { ...parseEdgeList(text), directed: false };

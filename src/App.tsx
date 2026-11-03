@@ -1,3 +1,4 @@
+import { runInAction } from "mobx";
 import { observer } from "mobx-react-lite";
 import { useEffect } from "react";
 import { EmptyState } from "./components/EmptyState";
@@ -9,7 +10,10 @@ import { Sidebar } from "./components/Sidebar/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { ftreeToNetwork } from "./lib/ftree-graph";
 import { loadInfomapOnline } from "./lib/infomap-online";
+import { loadFiles } from "./lib/load-files";
+import { fetchNetgamut } from "./lib/netgamut";
 import { useStores } from "./stores";
+import { nextPaint } from "./stores/ui-store";
 
 /** Input types a key can't type into: a shortcut still works on them. */
 const KEYLESS_INPUTS = new Set([
@@ -52,6 +56,44 @@ const App = observer(function App() {
         ui.setLoadOpen(false);
       })
       .catch((err) => ui.setLoadError(String(err)));
+  }, [store, ui]);
+
+  useEffect(() => {
+    // The netgamut catalog's "Open in the Network Navigator": ?netgamut=<key> loads that dataset from
+    // the netgamut mirror as if dropped alone, raw until Infomap runs. The load dialog stays open, busy,
+    // until the network is on screen (ui.viewReady).
+    const key = new URLSearchParams(window.location.search).get("netgamut");
+    if (!key) return;
+    // StrictMode runs the effect twice in development: the first download stops.
+    const abort = new AbortController();
+    const { signal } = abort;
+    const load = async (): Promise<void> => {
+      const { dataset, name, text } = await fetchNetgamut(key, {
+        signal,
+        onPhase: ui.setViewPhase,
+      });
+      if (signal.aborted) return;
+      ui.setViewPhase("Reading the network…");
+      await nextPaint();
+      const net = await loadFiles([{ name, text }], {
+        directed: dataset.directed,
+        twoLevel: false,
+        noInfomap: false,
+      });
+      if (signal.aborted) return;
+      ui.setViewPhase("Laying out and building the view…");
+      await nextPaint();
+      runInAction(() => {
+        store.setNetwork(net);
+        ui.clearInfomapRun();
+      });
+    };
+    load().catch((err) => {
+      if (signal.aborted) return;
+      ui.setViewPhase(null);
+      ui.setLoadError(err instanceof Error ? err.message : String(err));
+    });
+    return () => abort.abort();
   }, [store, ui]);
 
   return (

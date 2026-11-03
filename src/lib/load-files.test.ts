@@ -75,10 +75,32 @@ describe("networkToLoaded", () => {
     expect(net.directed).toBe(true);
   });
 
-  it("names unlabelled Pajek vertices by their number", () => {
+  it("skips the # comment lines above *Vertices, as netgamut's mirror writes", () => {
+    const text = `# ambassador\n# Source: https://example.org/ambassador\n${PAJEK}`;
+    const net = networkToLoaded(text, "ambassador.net");
+    expect(net.graph.nodeCount).toBe(3);
+    expect(net.names).toEqual(["n1", "n2", "n3"]);
+    expect(Array.from(net.graph.source)).toEqual([0, 1]);
+    expect(Array.from(net.graph.target)).toEqual([1, 2]);
+    expect(Array.from(net.graph.weight ?? [])).toEqual([1, 2]);
+  });
+
+  it("names unlabelled Pajek vertices by their number, as Infomap outputs them", () => {
+    // Infomap outputs the vertices a link uses, not the *Vertices count.
     const net = networkToLoaded("*Vertices 3\n*Edges\n1 3\n", "bare.net");
-    expect(net.physicalIds).toEqual([1, 2, 3]);
-    expect(net.names).toEqual(["1", "2", "3"]);
+    expect(net.physicalIds).toEqual([1, 3]);
+    expect(net.names).toEqual(["1", "3"]);
+  });
+
+  it("keeps Pajek vertex ids that start at 0 and skip numbers, as netgamut writes", () => {
+    const text =
+      '*Vertices 3\n0 "zero"\n2 "two"\n5 "five"\n*Edges\n0 2\n2 5 2\n5 7\n';
+    const net = networkToLoaded(text, "sparse.net");
+    expect(net.graph.nodeCount).toBe(4);
+    expect(net.physicalIds).toEqual([0, 2, 5, 7]);
+    expect(net.names).toEqual(["zero", "two", "five", "7"]);
+    expect(Array.from(net.graph.source)).toEqual([0, 1, 2]);
+    expect(Array.from(net.graph.target)).toEqual([1, 2, 3]);
   });
 
   it("keeps vertex ids for Pajek found by its headings, with no .net extension", () => {
