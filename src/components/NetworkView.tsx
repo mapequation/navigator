@@ -112,12 +112,17 @@ const makeScale = (kind: ScaleKind) =>
  */
 /** The flow-border width scale: over the physical nodes' flow borders in a state network's physical view. */
 function ringScaleOf(store: NetworkStore, settings: SettingsStore) {
-  const physical =
-    store.current?.isStates && settings.stateView === "physical"
+  // As the other scales: the physical view's spans the physical graph, the
+  // lumped views' the lumps (d3gl#529).
+  const states = store.current?.isStates;
+  const view =
+    states && settings.stateView === "physical"
       ? store.physicalMax
-      : null;
-  const max = physical
-    ? physical.boundary || physical.flow
+      : states
+        ? store.lumpedMax
+        : null;
+  const max = view
+    ? view.boundary || view.flow
     : store.maxBoundaryFlow || store.maxFlow;
   return makeScale(settings.nodeScale)
     .domain([0, max || 1])
@@ -212,13 +217,12 @@ export function buildStyle(
         ids: new Set(viewIds(f.ids, "physical", sg.stateToPhysical)),
       }))
     : stateOccurrences;
-  // A state network's physical view draws its physical nodes' flow borders.
-  // A lump's own exit flow is not known (its state nodes' sum would count the
-  // flow between them): lumped views draw the modules' rings only.
+  // A state network's physical view draws its physical nodes' flow borders,
+  // its lumped views their lumps' (their state nodes' summed, see sumByLump).
   const ring = physical
     ? cur?.physicalBoundaryFlow
     : lumped
-      ? undefined
+      ? (store.lumpedExitFlow ?? undefined)
       : cur?.boundaryFlow;
   const moduleFlow = cur?.moduleFlow;
   const ringScale = ringScaleOf(store, settings);

@@ -37,6 +37,8 @@ export const SelectedNode = observer(function SelectedNode() {
   const cur = store.current;
   const proxy = cur?.kind === "raw" && cur.directed ? " (undirected)" : "";
   if (sel.flow !== null) rows.push([`Flow${proxy}`, sel.flow.toExponential(2)]);
+  if (sel.enterFlow !== null)
+    rows.push([`Enter flow${proxy}`, sel.enterFlow.toExponential(2)]);
   if (sel.exitFlow !== null)
     rows.push([`Exit flow${proxy}`, sel.exitFlow.toExponential(2)]);
   if (sel.degree !== null) rows.push(["Degree", sel.degree.toLocaleString()]);

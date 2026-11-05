@@ -31,9 +31,15 @@ export interface SelectionInfo {
   modules: ModuleShare[] | null;
   flow: number | null;
   /**
+   * The flow entering it: a node's enter flow (LoadedNetwork.boundaryEnterFlow,
+   * a physical node's physicalBoundaryEnterFlow, a lump's lumpedEnterFlow), a
+   * whole module's enter flow; null when unknown.
+   */
+  enterFlow: number | null;
+  /**
    * The flow leaving it: a node's flow border (LoadedNetwork.boundaryFlow, a
-   * physical node's physicalBoundaryFlow), a whole module's exit flow; null
-   * when unknown.
+   * physical node's physicalBoundaryFlow, a lump's lumpedExitFlow), a whole
+   * module's exit flow; null when unknown.
    */
   exitFlow: number | null;
   /** A node's or physical node's link count; null for an aggregate. */
@@ -150,6 +156,24 @@ function maximaOf(g: NetworkGraph): {
   return { flow, degree, weight };
 }
 
+/**
+ * Each lump's sum of its state nodes' `values` (by state id), or null without
+ * `values` or when the lumps are not by module. A lump's state nodes share its
+ * module, so a link between two of them crosses no module boundary: summed,
+ * their flow entering and leaving their module (LoadedNetwork.boundaryEnterFlow,
+ * boundaryFlow) is the lump's own enter and exit flow. O(state nodes).
+ */
+function sumByLump(
+  values: Float32Array | undefined,
+  lumped: LumpedStateNetwork,
+): Float32Array | null {
+  if (!values || !lumped.modules) return null;
+  const sum = new Float64Array(lumped.graph.state.nodeCount);
+  const { stateToLump } = lumped;
+  for (let s = 0; s < stateToLump.length; s++) sum[stateToLump[s]] += values[s];
+  return Float32Array.from(sum);
+}
+
 /** Module pathKey → highest-flow leaf, over every module prefix. O(nodes · depth). */
 function topLeaves(net: LoadedNetwork): Map<string, number> {
   const out = new Map<string, number>();
@@ -202,7 +226,20 @@ export class NetworkStore {
    * domains. Null while they draw the state nodes as given.
    */
   lumped: LumpedStateNetwork | null = null;
-  lumpedMax: { flow: number; degree: number; weight: number } | null = null;
+  lumpedMax: {
+    flow: number;
+    degree: number;
+    weight: number;
+    /** Largest lump flow border (lumpedExitFlow). */
+    boundary: number;
+  } | null = null;
+  /**
+   * Each lump's enter and exit flow, by lump id (see sumByLump); the exit
+   * flow is the lumped views' flow borders. Null while not lumped, or without
+   * node enter or exit flow.
+   */
+  lumpedEnterFlow: Float32Array | null = null;
+  lumpedExitFlow: Float32Array | null = null;
   /**
    * Bumped on every load (setNetwork): the view takes the network as new data,
    * lays it out from scratch and frames it. A re-clustering of a plain network
@@ -235,6 +272,8 @@ export class NetworkStore {
         built: false,
         builtState: false,
         lumped: observable.ref,
+        lumpedEnterFlow: observable.ref,
+        lumpedExitFlow: observable.ref,
         engine: false,
         zoomTo: false,
         moduleLeafCache: false,
@@ -314,14 +353,25 @@ export class NetworkStore {
   /** The lumped network the engine draws now (net.lumped), or null. */
   setLumped(lumped: LumpedStateNetwork | null): void {
     if (lumped === this.lumped) return;
+    const cur = this.current;
     this.lumped = lumped;
-    this.lumpedMax = lumped ? maximaOf(lumped.graph.state) : null;
+    this.lumpedEnterFlow = lumped
+      ? sumByLump(cur?.boundaryEnterFlow, lumped)
+      : null;
+    this.lumpedExitFlow = lumped ? sumByLump(cur?.boundaryFlow, lumped) : null;
+    this.lumpedMax = lumped
+      ? {
+          ...maximaOf(lumped.graph.state),
+          boundary: maxOf(this.lumpedExitFlow ?? undefined),
+        }
+      : null;
   }
 
   /**
    * Select lump `l` of the lumped network: its physical node in its module,
    * named by the physical node, weighed by the lump's own flow and degree,
-   * its state nodes the members.
+   * its state nodes the members, its enter and exit flow theirs summed (see
+   * sumByLump).
    */
   selectLump(l: number): void {
     this.searchShown = false;
@@ -341,7 +391,8 @@ export class NetworkStore {
       path,
       modules: null,
       flow: lumped.graph.state.flow?.[l] ?? null,
-      exitFlow: null, // a lump's own exit flow is not known
+      enterFlow: this.lumpedEnterFlow?.[l] ?? null,
+      exitFlow: this.lumpedExitFlow?.[l] ?? null,
       degree: lumped.graph.state.csr.degree[l] ?? null,
       physicalId: cur.physicalIds?.[ids[0] ?? -1] ?? null,
     };
@@ -417,6 +468,7 @@ export class NetworkStore {
         path,
         modules: shares.length > 1 ? shares : null,
         flow: sg.physical.flow?.[physical] ?? null,
+        enterFlow: cur.physicalBoundaryEnterFlow?.[physical] ?? null,
         exitFlow: cur.physicalBoundaryFlow?.[physical] ?? null,
         degree: sg.physical.csr.degree[physical] ?? null,
         physicalId: cur.physicalIds?.[ids[0] ?? -1] ?? null,
@@ -435,6 +487,7 @@ export class NetworkStore {
         path,
         modules: null,
         flow: nodeFlow ? nodeFlow[id] : null,
+        enterFlow: cur.boundaryEnterFlow?.[id] ?? null,
         exitFlow: cur.boundaryFlow?.[id] ?? null,
         degree: this.built?.csr.degree[id] ?? null,
         physicalId: cur.physicalIds?.[id] ?? null,
@@ -447,9 +500,11 @@ export class NetworkStore {
       ? commonPathPrefix(ids.map((i) => cur.modules?.[i]?.path ?? []))
       : null;
     const flow = nodeFlow ? ids.reduce((sum, i) => sum + nodeFlow[i], 0) : null;
-    // A whole module's exit flow; an aggregate of part of one has none known.
+    // A whole module's enter and exit flow; an aggregate of part of one has
+    // none known.
     const whole =
       path?.length && this.leavesOfModule(path).length === ids.length;
+    const moduleFlow = whole ? cur.moduleFlow?.get(pathKey(path)) : undefined;
     this.selection = {
       ids,
       aggregate: true,
@@ -458,9 +513,8 @@ export class NetworkStore {
       path,
       modules: null,
       flow,
-      exitFlow: whole
-        ? (cur.moduleFlow?.get(pathKey(path))?.exitFlow ?? null)
-        : null,
+      enterFlow: moduleFlow?.enterFlow ?? null,
+      exitFlow: moduleFlow?.exitFlow ?? null,
       degree: null,
       physicalId: null,
     };
