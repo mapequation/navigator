@@ -113,25 +113,33 @@ async function fetchOk(url: string, signal?: AbortSignal): Promise<Response> {
 const reason = (err: unknown): string =>
   err instanceof Error ? err.message || err.name : String(err);
 
-/**
- * Fetch the dataset `key` from the netgamut mirror, gunzipped. `onPhase` gets what the download is doing,
- * with its percentage, each time that changes.
- */
+export interface FetchOptions {
+  manifestUrl?: string;
+  signal?: AbortSignal;
+  /** What the download is doing, with its percentage, each time that changes. */
+  onPhase?: (phase: string) => void;
+  /**
+   * Bytes of the gzipped file read so far, of `total`, each time the percentage changes; null while it looks
+   * the network up.
+   */
+  onProgress?: (read: number | null, total: number) => void;
+}
+
+/** Fetch the dataset `key` from the netgamut mirror, gunzipped. */
 export async function fetchNetgamut(
   key: string,
-  {
+  options: FetchOptions = {},
+): Promise<NetgamutNetwork> {
+  const {
     manifestUrl = NETGAMUT_MIRROR,
     signal,
     onPhase,
-  }: {
-    manifestUrl?: string;
-    signal?: AbortSignal;
-    onPhase?: (phase: string) => void;
-  } = {},
-): Promise<NetgamutNetwork> {
+    onProgress,
+  } = options;
   // A relative URL (VITE_NETGAMUT_MIRROR on the dev server) resolves against the page.
   const base = new URL(manifestUrl, globalThis.location?.href);
   onPhase?.("Looking up the network in the netgamut mirror…");
+  onProgress?.(null, 0);
   let manifest: NetgamutManifest;
   try {
     manifest = await (await fetchOk(base.href, signal)).json();
@@ -140,10 +148,24 @@ export async function fetchNetgamut(
       `Could not load the netgamut mirror manifest ${base.href}: ${reason(err)}`,
     );
   }
-  const dataset = findDataset(manifest, key);
+  return downloadDataset(findDataset(manifest, key), options);
+}
+
+/** Download `dataset`, listed in the manifest at `manifestUrl`, gunzipped. */
+export async function downloadDataset(
+  dataset: NetgamutDataset,
+  {
+    manifestUrl = NETGAMUT_MIRROR,
+    signal,
+    onPhase,
+    onProgress,
+  }: FetchOptions = {},
+): Promise<NetgamutNetwork> {
+  const base = new URL(manifestUrl, globalThis.location?.href);
   const url = new URL(dataset.file, base).href;
   const label = `Downloading ${dataset.title} (${megabytes(dataset.bytes)})…`;
   onPhase?.(label);
+  onProgress?.(0, dataset.bytes);
   let percent = 0;
   try {
     const res = await fetchOk(url, signal);
@@ -153,6 +175,7 @@ export async function fetchNetgamut(
       if (p === percent) return;
       percent = p;
       onPhase?.(`${label} ${p}%`);
+      onProgress?.(read, dataset.bytes);
     });
     return {
       dataset,

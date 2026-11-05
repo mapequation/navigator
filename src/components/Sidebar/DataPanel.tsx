@@ -1,7 +1,9 @@
-import { AlertDialog, Button, Chip, Tooltip } from "@heroui/react";
+import { AlertDialog, Button, Chip, Popover, Tooltip } from "@heroui/react";
 import { observer } from "mobx-react-lite";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { citationText, sourceLabel } from "../../lib/netgamut-catalog";
 import { formatBytes, formatNumber } from "../../lib/network-stats";
+import type { NetworkOrigin } from "../../lib/types";
 import { useStores } from "../../stores";
 import { Stats } from "./controls";
 
@@ -84,6 +86,102 @@ function FileRow({
   );
 }
 
+function CopyCitation({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      className="h-6 px-2 text-xs"
+      onPress={() => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+    >
+      {copied ? "Copied" : "Copy"}
+    </Button>
+  );
+}
+
+/** Where a catalog network is from, how to cite it, and a way back to it in the load dialog. */
+const Origin = observer(function Origin({ origin }: { origin: NetworkOrigin }) {
+  const { library } = useStores();
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg bg-neutral-50 px-3 py-2 text-xs">
+      <p className="text-neutral-500">
+        From{" "}
+        {origin.url ? (
+          <a
+            href={origin.url}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-neutral-700 hover:text-blue-700 hover:underline"
+          >
+            {sourceLabel(origin.source)}
+          </a>
+        ) : (
+          <span className="font-medium text-neutral-700">
+            {sourceLabel(origin.source)}
+          </span>
+        )}{" "}
+        via the netgamut catalog
+      </p>
+      <div className="flex gap-1">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-6 px-2 text-xs"
+          onPress={() => {
+            library.browse(origin.key);
+            library.open();
+          }}
+        >
+          Details
+        </Button>
+        {origin.citations.length > 0 && (
+          <Popover>
+            <Button size="sm" variant="secondary" className="h-6 px-2 text-xs">
+              Cite the data
+            </Button>
+            <Popover.Content className="max-w-96">
+              <Popover.Dialog>
+                <div className="flex items-center justify-between gap-3">
+                  <Popover.Heading>Cite {origin.name}</Popover.Heading>
+                  <CopyCitation
+                    text={origin.citations
+                      .map((c) => citationText(c.text))
+                      .join("\n\n")}
+                  />
+                </div>
+                <ul className="mt-2 flex flex-col gap-2 text-xs text-neutral-700">
+                  {origin.citations.map((c) => (
+                    <li key={citationText(c.text)}>
+                      {c.url ? (
+                        <a
+                          href={c.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:text-blue-700 hover:underline"
+                        >
+                          {citationText(c.text)}
+                        </a>
+                      ) : (
+                        citationText(c.text)
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Popover.Dialog>
+            </Popover.Content>
+          </Popover>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export const DataPanel = observer(function DataPanel() {
   const { network: store, ui } = useStores();
   const [confirmClear, setConfirmClear] = useState(false);
@@ -139,6 +237,7 @@ export const DataPanel = observer(function DataPanel() {
 
   return (
     <div className="flex flex-col gap-2.5">
+      {cur.origin && <Origin origin={cur.origin} />}
       <ul ref={list} className="flex flex-col gap-1">
         {/* Any network input clears the whole network (after a confirm); a
             metadata file goes alone. */}

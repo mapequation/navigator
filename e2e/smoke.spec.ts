@@ -774,9 +774,10 @@ test.describe("Network Navigator smoke", () => {
     const errors = collectErrors(page);
     const heading = page.getByRole("heading", { name: "Load network" });
     const dialog = page.getByRole("dialog", { name: "Load network" });
+    // The empty state opens the dialog on a tab: Try an example opens it on Examples.
     const openFromEmpty = page
       .locator("main")
-      .getByRole("button", { name: /^Load network/ });
+      .getByRole("button", { name: "Try an example" });
     const { view, group, simulation } = layoutControls(page);
 
     // Escape dismisses the dialog at startup, as it does once a network is loaded.
@@ -805,6 +806,9 @@ test.describe("Network Navigator smoke", () => {
     await expect(nested).not.toBeChecked();
     await page.keyboard.press("l");
     await expect(heading).toBeVisible();
+    // A click outside closes the dialog once react-aria has registered it (an effect after the dialog
+    // mounts): wait for the entering animation to end, as a person would.
+    await page.locator("[data-slot=modal-backdrop]:not([data-entering])").waitFor();
     await page.mouse.click(8, 8);
     await expect(heading).toBeHidden();
 

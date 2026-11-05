@@ -52,7 +52,13 @@ export const HelpModal = observer(function HelpModal() {
           <Modal.Body className="flex flex-col gap-5">
             <Section title="Load a network">
               <p className="text-sm text-neutral-600">
-                Press <Kbd>L</Kbd> or Load network, then drop or pick files:
+                Press <Kbd>L</Kbd> or Load network. The dialog has three tabs:
+                Examples to start from; Browse netgamut to search hundreds of
+                real networks from the{" "}
+                <Link href="https://mapequation.org/netgamut/">netgamut</Link>{" "}
+                catalog by name, topic or author, filter them by domain,
+                direction and size, and load one; and Your files, where you drop
+                or pick your own (or drop them anywhere on the dialog):
               </p>
               <List>
                 <li>
@@ -74,15 +80,14 @@ export const HelpModal = observer(function HelpModal() {
                 </li>
               </List>
               <p className="text-sm text-neutral-600">
-                The examples are a citation network, an <code>.ftree</code> with
-                hierarchical modules, and Les Misérables, a <code>.net</code>{" "}
-                state network without modules, for you to run Infomap on. Open
-                from Infomap Online loads a network you ran there. A{" "}
-                <code>?netgamut=&lt;key&gt;</code> link, as the{" "}
-                <Link href="https://github.com/mapequation/netgamut">
-                  netgamut
-                </Link>{" "}
-                catalog makes, opens that dataset without modules. See the{" "}
+                The bundled examples are a citation network, an{" "}
+                <code>.ftree</code> with hierarchical modules, and Les
+                Misérables, a <code>.net</code> state network without modules,
+                for you to run Infomap on. Networks from netgamut open without
+                modules too; the Data section says where each one comes from and
+                how to cite it, and the address bar holds a{" "}
+                <code>?netgamut=&lt;key&gt;</code> link that opens it again.
+                Open from Infomap Online loads a network you ran there. See the{" "}
                 <Link href="https://mapequation.org/infomap/">
                   Infomap documentation
                 </Link>{" "}
