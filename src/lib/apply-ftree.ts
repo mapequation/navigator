@@ -7,9 +7,9 @@ import type { InfomapTree, InfomapTreeNode, LoadedNetwork } from "./types";
  * No moduleLinks: the raw graph already holds every leaf edge, and d3gl sums
  * moduleLinks on top of the graph's edges, so they would count twice.
  *
- * `flowText` is the same run's flow output (-o flow). With it, a plain
- * network gets each node's exit flow (its flow border) and enter flow when
- * they add up to the tree's module exit and enter flow; see boundaryFlow.
+ * `flowText` is the same run's flow output (-o flow). With it, each node gets
+ * its exit flow (its flow border) and enter flow along links, marked partial
+ * where they miss the tree's module exit and enter flow; see boundaryFlow.
  */
 export function withClustering(
   net: LoadedNetwork,
@@ -66,6 +66,7 @@ export function withClustering(
   let enter: Float32Array | undefined;
   let physicalRing: Float32Array | undefined;
   let physicalEnter: Float32Array | undefined;
+  let partial: string | undefined;
   const sg = net.stateGraph;
   if (flowText) {
     const r = boundaryFlow(
@@ -86,6 +87,8 @@ export function withClustering(
       enter = r.enter;
       physicalRing = r.group;
       physicalEnter = r.groupEnter;
+      partial = r.partial;
+      if (partial) console.info(`Node flows along links only: ${partial}`);
     } else console.info(`No flow borders: ${r.reason}`);
   }
 
@@ -107,6 +110,7 @@ export function withClustering(
     boundaryEnterFlow: enter,
     physicalBoundaryFlow: physicalRing,
     physicalBoundaryEnterFlow: physicalEnter,
+    partialNodeFlow: partial,
     moduleFlow: moduleFlowOf(tree),
   };
 }

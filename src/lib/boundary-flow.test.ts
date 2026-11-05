@@ -151,7 +151,7 @@ describe("boundaryFlow", () => {
     expect(Array.from(r.enter)).toEqual(Array.from(r.node));
   });
 
-  it("refuses rings that don't add up to a module's exit flow", () => {
+  it("marks exit flows that don't add up to a module's as along links only", () => {
     // As with recorded teleportation: flow crosses without a link.
     const tree = toyTree([
       toyModule([0], 0, 0),
@@ -160,12 +160,19 @@ describe("boundaryFlow", () => {
     ]);
     const r = boundaryFlow(tree, toyFlow, 3, (id) => dense.get(id));
     expect(r).toMatchObject({
-      ok: false,
-      reason: expect.stringMatching(/^module 1:/),
+      ok: true,
+      partial: expect.stringMatching(/^module 1: .* exit flow 0\.25$/),
     });
+    // The link flow, as it is.
+    if (r.ok)
+      expect(Array.from(r.node)).toEqual([
+        0,
+        Math.fround(0.2),
+        Math.fround(0.2),
+      ]);
   });
 
-  it("refuses enter flows that don't add up to a module's enter flow", () => {
+  it("marks enter flows that don't add up to a module's as along links only", () => {
     const tree = toyTree([
       toyModule([0], 0, 0),
       toyModule([1], 0.25, 0.2),
@@ -173,8 +180,8 @@ describe("boundaryFlow", () => {
     ]);
     const r = boundaryFlow(tree, toyFlow, 3, (id) => dense.get(id));
     expect(r).toMatchObject({
-      ok: false,
-      reason: expect.stringMatching(/^module 1: .* enter flow 0\.25$/),
+      ok: true,
+      partial: expect.stringMatching(/^module 1: .* enter flow 0\.25$/),
     });
   });
 
@@ -233,6 +240,7 @@ describe("flow-border rings against Infomap's module flow", () => {
     const modules = clustered.modules;
     expect(ring).toBeDefined();
     expect(enter).toBeDefined();
+    expect(clustered.partialNodeFlow).toBeUndefined();
     if (!ring || !enter || !modules) return 0;
     const sum = new Map<string, { enter: number; exit: number }>();
     for (const m of modules) {
@@ -290,6 +298,20 @@ describe("flow-border rings against Infomap's module flow", () => {
         await cluster("e2e/fixtures/toy.net", { directed, flags }),
       ),
     ).toBe(2);
+  });
+
+  it("keeps a regularized run's node flows, marked as along links only", async () => {
+    // toy.net is one module once regularized; the Les Misérables states
+    // network has several.
+    const run = await cluster("public/Les_Miserables.net", {
+      directed: false,
+      flags: "--regularized",
+    });
+    // The prior's flow between modules is on no link.
+    expect(run.clustered.partialNodeFlow).toMatch(/^module /);
+    const n = run.clustered.graph.nodeCount; // its state nodes
+    expect(run.clustered.boundaryFlow).toHaveLength(n);
+    expect(run.clustered.boundaryEnterFlow).toHaveLength(n);
   });
 
   it.each([

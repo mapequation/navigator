@@ -109,6 +109,14 @@ export interface LoadedNetwork {
   physicalBoundaryFlow?: Float32Array;
   /** The flow entering each physical node from other physical nodes. */
   physicalBoundaryEnterFlow?: Float32Array;
+  /**
+   * Set when those node flows are the flow along links only: the in-app
+   * Infomap run also moved flow between modules without a link (regularization,
+   * recorded teleportation), which Infomap reports for whole modules
+   * (moduleFlow) but not per node. Holds where the links fall short. Flow
+   * borders then draw the modules' only.
+   */
+  partialNodeFlow?: string;
   /** Every module's enter/exit flow, by pathKey (root ""): from the in-app Infomap run, or an .ftree's *Links headers. */
   moduleFlow?: Map<string, ModuleFlow>;
   /** Raw network file text — enables (re-)clustering with Infomap. */

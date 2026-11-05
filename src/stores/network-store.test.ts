@@ -58,14 +58,23 @@ describe("NetworkStore", () => {
     store.setNetwork(toy());
     store.selectFromHit(0, false, null);
     expect(store.selection).toMatchObject({
+      kind: "node",
       ids: [0],
       aggregate: false,
       name: "alpha",
+      // Its module, and its tree path: its module, then its rank in it.
+      path: [1],
+      treePath: [1, 1],
+      degree: 1, // undirected: to beta
+      inDegree: null,
+      outDegree: null,
+      stateId: null,
       physicalId: 1,
     });
     expect(store.breadcrumb).toEqual([1]);
 
     store.selectFromHit(99, true, [2, 3]);
+    expect(store.selection?.kind).toBe("module"); // all of module 2
     expect(store.selection?.ids).toEqual([2, 3]);
     expect(store.selection?.path).toEqual([2]);
     expect(store.selection?.flow).toBeCloseTo(0.3, 5);
@@ -245,6 +254,7 @@ describe("NetworkStore", () => {
 
     store.selectFromHit(0, false, [0], 0); // the physical view's alpha
     expect(store.selection).toMatchObject({
+      kind: "physical node",
       ids: [0, 1],
       aggregate: true,
       physical: true,
@@ -253,17 +263,25 @@ describe("NetworkStore", () => {
       // Degree flow, read as undirected, enters as it leaves.
       enterFlow: expect.closeTo(0.5, 6),
       exitFlow: expect.closeTo(0.5, 6),
-      degree: 4, // one link each way with beta and with gamma
+      // Directed: one link each way with beta and with gamma.
+      degree: null,
+      inDegree: 2,
+      outDegree: 2,
+      stateId: null,
       physicalId: 1,
     });
     store.selectFromHit(0, false, null); // the state view's alpha-in
     expect(store.selection).toMatchObject({
+      kind: "state node",
       name: "alpha-in",
       physical: false,
       flow: expect.closeTo(0.2, 6),
       enterFlow: expect.closeTo(0.2, 6),
       exitFlow: expect.closeTo(0.2, 6),
-      degree: 2, // from gamma, to beta
+      inDegree: 1, // from gamma
+      outDegree: 1, // to beta
+      stateId: 1,
+      physicalId: 1,
     });
 
     // Clustered: both-view containers (id stateCount + p), weighed by flow.
@@ -330,6 +348,10 @@ describe("NetworkStore", () => {
       store.selectLump(l);
       const sel = store.selection;
       if (!sel?.path) throw new Error(`lump ${l} has no module`);
+      expect(sel).toMatchObject({ kind: "lump", degree: null, treePath: null });
+      // Directed: its links in and out; a state id only for one state node.
+      expect((sel.inDegree ?? 0) + (sel.outDegree ?? 0)).toBeGreaterThan(0);
+      expect(sel.stateId !== null).toBe(sel.ids.length === 1);
       if (sel.ids.length > 1) shared++;
       const key = pathKey(sel.path);
       const sum = sums.get(key) ?? { enter: 0, exit: 0 };
@@ -348,11 +370,20 @@ describe("NetworkStore", () => {
     // A whole module, drawn as one: Infomap's enter and exit flow.
     const [key] = sums.keys();
     const path = key.split(":").map(Number);
-    store.selectFromHit(0, true, [...store.leavesOfModule(path)]);
+    const leaves = [...store.leavesOfModule(path)];
+    store.selectFromHit(0, true, leaves);
     expect(store.selection).toMatchObject({
+      kind: "module",
       path,
       enterFlow: cur.moduleFlow.get(key)?.enterFlow,
       exitFlow: cur.moduleFlow.get(key)?.exitFlow,
+    });
+    // Part of it: an aggregate, with no enter or exit flow known.
+    store.selectFromHit(0, true, leaves.slice(1));
+    expect(store.selection).toMatchObject({
+      kind: "aggregate",
+      enterFlow: null,
+      exitFlow: null,
     });
   });
 

@@ -219,11 +219,14 @@ export function buildStyle(
     : stateOccurrences;
   // A state network's physical view draws its physical nodes' flow borders,
   // its lumped views their lumps' (their state nodes' summed, see sumByLump).
-  const ring = physical
-    ? cur?.physicalBoundaryFlow
-    : lumped
-      ? (store.lumpedExitFlow ?? undefined)
-      : cur?.boundaryFlow;
+  // Nodes' flow along links only would not add up to their module's: none.
+  const ring = cur?.partialNodeFlow
+    ? undefined
+    : physical
+      ? cur?.physicalBoundaryFlow
+      : lumped
+        ? (store.lumpedExitFlow ?? undefined)
+        : cur?.boundaryFlow;
   const moduleFlow = cur?.moduleFlow;
   const ringScale = ringScaleOf(store, settings);
   const ringColor = scaleLinear<string>()

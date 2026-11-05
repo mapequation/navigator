@@ -126,6 +126,12 @@ export type BoundaryFlowResult =
       group?: Float32Array;
       /** With `groups`: the link flow entering each group. */
       groupEnter?: Float32Array;
+      /**
+       * Set when the link flow misses Infomap's flow of a module (the first
+       * such module, and by how much): the run also moved flow between
+       * modules without a link, and these are the flow along links only.
+       */
+      partial?: string;
     }
   | { ok: false; reason: string };
 
@@ -137,9 +143,10 @@ export type BoundaryFlowResult =
  * flow both ways, adds f/2 to each end's exit and enter flow. Summed over a
  * bottom module's leaves those are the flow leaving and entering it, which the
  * JSON tree reports as exitFlow and enterFlow; the result is checked against
- * both for every bottom module and refused (ok: false) on any mismatch — as
- * with recorded teleportation or regularization, whose teleportation flow
- * crosses module boundaries without a link.
+ * both for every bottom module. On any mismatch — as with recorded
+ * teleportation or regularization, whose flow crosses module boundaries
+ * without a link — it is the flow along links only, and `partial` says so.
+ * Infomap reports that other flow for whole modules, not per node.
  *
  * `denseOf` maps an Infomap node id to the node's dense index; `keyOf` gives
  * a tree node's Infomap id as the flow links name it (a state node's state
@@ -237,6 +244,7 @@ export function boundaryFlow(
     sumIn[bottomOf[i]] += enter[i];
   }
   const modules = moduleFlowOf(tree);
+  let partial: string | undefined;
   const off = (got: number, want: number): boolean =>
     Math.abs(got - want) >
     REL_TOL * Math.max(Math.abs(got), Math.abs(want)) + ABS_TOL;
@@ -247,18 +255,11 @@ export function boundaryFlow(
         ok: false,
         reason: `module ${bottomKeys[b]} is missing from the tree`,
       };
-    if (off(sumOut[b], m.exitFlow)) {
-      return {
-        ok: false,
-        reason: `module ${bottomKeys[b]}: its links carry ${sumOut[b]} out of it, Infomap reports exit flow ${m.exitFlow}`,
-      };
-    }
-    if (off(sumIn[b], m.enterFlow)) {
-      return {
-        ok: false,
-        reason: `module ${bottomKeys[b]}: its links carry ${sumIn[b]} into it, Infomap reports enter flow ${m.enterFlow}`,
-      };
-    }
+    if (partial) continue;
+    if (off(sumOut[b], m.exitFlow))
+      partial = `module ${bottomKeys[b]}: its links carry ${sumOut[b]} out of it, Infomap reports exit flow ${m.exitFlow}`;
+    else if (off(sumIn[b], m.enterFlow))
+      partial = `module ${bottomKeys[b]}: its links carry ${sumIn[b]} into it, Infomap reports enter flow ${m.enterFlow}`;
   }
 
   const node = Float32Array.from(ring);
@@ -269,6 +270,7 @@ export function boundaryFlow(
     node,
     enter: Float32Array.from(enter),
     max,
+    ...(partial ? { partial } : {}),
     ...(group && groupEnter
       ? {
           group: Float32Array.from(group),

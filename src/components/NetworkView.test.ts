@@ -210,6 +210,27 @@ describe("buildStyle colours and flow borders", () => {
     expect(store.lumpedExitFlow).toBeNull();
   });
 
+  it("draws no node flow borders of flow along links only, but the modules' own", () => {
+    const boundaryFlow = new Float32Array([0, 0.1, 0.1, 0.05]);
+    const moduleFlow = new Map([["1", { enterFlow: 0.05, exitFlow: 0.07 }]]);
+    const { store, settings } = setup({
+      ...clustered(),
+      boundaryFlow,
+      moduleFlow,
+      partialNodeFlow: "module 1: its links carry 0.1 out of it",
+    });
+    const ring = buildStyle(store, settings, colors).flowBorder;
+    expect(ring?.flow).toBeUndefined();
+    expect(ring?.moduleFlow?.([1])).toBe(0.07);
+    expect(store.maxBoundaryFlow).toBe(0); // the ring scale as without them
+    // The selection still shows them, as along links only.
+    store.selectFromHit(1, false, null);
+    expect(store.selection).toMatchObject({
+      exitFlow: expect.closeTo(0.1, 6),
+      linksOnly: true,
+    });
+  });
+
   it("gives only the modules of an .ftree flow borders, by the exit flow in its headers", () => {
     const moduleFlow = new Map([["1", { enterFlow: 0.05, exitFlow: 0.07 }]]);
     const { store, settings } = setup({ ...clustered(), moduleFlow });
