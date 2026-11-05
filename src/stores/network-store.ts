@@ -158,10 +158,16 @@ function maximaOf(g: NetworkGraph): {
 
 /**
  * Each lump's sum of its state nodes' `values` (by state id), or null without
- * `values` or when the lumps are not by module. A lump's state nodes share its
- * module, so a link between two of them crosses no module boundary: summed,
- * their flow entering and leaving their module (LoadedNetwork.boundaryEnterFlow,
- * boundaryFlow) is the lump's own enter and exit flow. O(state nodes).
+ * `values`. A lump is one physical node's state nodes in one module, so a link
+ * between two of them crosses no module boundary: summed, their flow entering
+ * and leaving their module (LoadedNetwork.boundaryEnterFlow, boundaryFlow) is
+ * the lump's own enter and exit flow. O(state nodes).
+ *
+ * Also null for a lumping without modules, which puts each physical node's
+ * state nodes in the root module as one lump (lumpStateGraph; the app never
+ * lumps a network without modules). Their flow is then not flow across the
+ * root module's boundary: before Infomap runs it is the flow leaving each
+ * state node, so the sum would count the links between them.
  */
 function sumByLump(
   values: Float32Array | undefined,

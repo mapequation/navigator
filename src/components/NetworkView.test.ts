@@ -203,8 +203,9 @@ describe("buildStyle colours and flow borders", () => {
     expect(buildStyle(store, settings, colors).flowBorder?.flow).toBe(
       boundaryFlow,
     );
-    // Lumped without modules, a lump would count the flow between its own
-    // state nodes: none.
+    // Lumped without modules (each physical node's state nodes one lump, in the
+    // root module), the state nodes' flow is not flow across that module's
+    // boundary: no sum.
     store.setLumped(lumpStateGraph(sg));
     expect(store.lumpedExitFlow).toBeNull();
   });
