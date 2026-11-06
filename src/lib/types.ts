@@ -41,10 +41,27 @@ export interface SourceFile {
   kind: FileKind;
 }
 
+/** A network from the netgamut catalog: where it is from and how to cite it. */
+export interface NetgamutOrigin {
+  kind: "netgamut";
+  /** `<source>/<name>`, as in `?netgamut=<key>`. */
+  key: string;
+  name: string;
+  source: string;
+  /** The source's page for the dataset. */
+  url?: string;
+  citations: { text: string; url?: string }[];
+}
+
+/** Where a network that is not the user's own file came from. */
+export type NetworkOrigin = NetgamutOrigin;
+
 /** Everything the app knows about the currently loaded network. */
 export interface LoadedNetwork {
   kind: "raw" | "clustered";
   filename: string;
+  /** Set for a network from a catalog; absent for the user's files, the bundled examples and Infomap Online. */
+  origin?: NetworkOrigin;
   /**
    * Every file the network was built from (network, partition, or ftree).
    * Bundled companions (the example's module names) are not sources.

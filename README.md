@@ -12,12 +12,17 @@ Published at [mapequation.org/navigator](https://www.mapequation.org/navigator/)
   `.tree`/`.clu` partitions (flow computed by Infomap, optionally `--no-infomap`).
 - Runs [Infomap](https://www.mapequation.org/infomap/) in the browser to
   cluster raw networks; opens results from Infomap Online.
-- `?netgamut=<key>` (e.g. `/navigator/?netgamut=netzschleuder/ambassador`)
-  opens a dataset from the [netgamut](https://github.com/mapequation/netgamut)
-  catalog's mirror, gzipped Pajek listed in
+- The load dialog browses the [netgamut](https://github.com/mapequation/netgamut)
+  catalog: search by name, topic or author, filter by domain, direction and
+  size, and load a network; Infomap clusters it as it loads. It lists the networks of the
+  catalog's web mirror, gzipped Pajek listed in
   [`index.json`](https://raw.githubusercontent.com/mapequation/netgamut-networks/mirror/index.json),
-  without modules. Set `VITE_NETGAMUT_MIRROR` to another manifest URL to
-  develop against a local mirror.
+  described by the catalog index netgamut's documentation serves
+  (`_static/explorer/catalog.json`). A loaded network's
+  `?netgamut=<key>` (e.g. `/navigator/?netgamut=netzschleuder/karate`) stays
+  in the address bar, so the link opens it again; `&noInfomap` opens it
+  without running Infomap. Set `VITE_NETGAMUT_MIRROR`
+  and `VITE_NETGAMUT_CATALOG` to other URLs to develop against a local mirror.
 - Export ftree, SVG, PNG.
 
 ## Development

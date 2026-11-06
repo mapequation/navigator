@@ -11,8 +11,23 @@ const MAC =
 /** The search shortcut as its key cap reads. */
 export const SEARCH_SHORTCUT = MAC ? "⌘K" : "Ctrl K";
 
+/** Whether `ev` is the search shortcut: Cmd+K on a Mac, Ctrl+K elsewhere. */
+export const isSearchShortcut = (ev: KeyboardEvent): boolean =>
+  ev.key.toLowerCase() === "k" && (MAC ? ev.metaKey : ev.ctrlKey);
+
+/** The search shortcut's key cap in a search field, as quiet as the placeholder. */
+export function SearchShortcutKbd() {
+  return (
+    // As quiet as the placeholder (the browser's: the text colour at half opacity) and its weight, on a
+    // lighter cap.
+    <Kbd className="mr-1.5 h-5 shrink-0 rounded-md bg-default/50 px-1.5 text-[10px] font-normal text-field-foreground/50">
+      {SEARCH_SHORTCUT}
+    </Kbd>
+  );
+}
+
 export const Search = observer(function Search() {
-  const { network: store } = useStores();
+  const { network: store, ui } = useStores();
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const update = (value: string): void => {
@@ -26,15 +41,16 @@ export const Search = observer(function Search() {
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
-      if (ev.key.toLowerCase() !== "k" || !(MAC ? ev.metaKey : ev.ctrlKey))
-        return;
+      if (!isSearchShortcut(ev)) return;
+      // In the load dialog, the shortcut is the catalog search's.
+      if (ui.loadOpen) return;
       ev.preventDefault();
       input.current?.focus();
       input.current?.select();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [ui]);
 
   return (
     <div className="flex items-center gap-2">
@@ -67,15 +83,7 @@ export const Search = observer(function Search() {
               if (ev.key === "Escape") ev.currentTarget.blur();
             }}
           />
-          {query ? (
-            <SearchField.ClearButton />
-          ) : (
-            // As quiet as the placeholder (the browser's: the text colour at
-            // half opacity) and its weight, on a lighter cap.
-            <Kbd className="mr-1.5 h-5 shrink-0 rounded-md bg-default/50 px-1.5 text-[10px] font-normal text-field-foreground/50">
-              {SEARCH_SHORTCUT}
-            </Kbd>
-          )}
+          {query ? <SearchField.ClearButton /> : <SearchShortcutKbd />}
         </SearchField.Group>
       </SearchField>
       {matches !== undefined && (
