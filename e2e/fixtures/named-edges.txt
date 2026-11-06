@@ -1,0 +1,9 @@
+# An edge list with names: two triangles and a link between them.
+# 01 and 1 are two nodes, as their labels differ.
+alice bob
+bob carol
+carol alice
+01 1
+1 dave
+dave 01
+carol 01

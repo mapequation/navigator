@@ -1,0 +1,4 @@
+# an edge list with a line that has no target
+1 2
+3
+2 3

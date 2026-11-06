@@ -78,7 +78,7 @@ export function networkToLoaded(
       physicalBoundaryEnterFlow: physicalExit,
     };
   }
-  const { parsed, physicalIds } = parseWithIds(text, filename);
+  const { parsed, physicalIds, edgeList } = parseWithIds(text, filename);
   const directed = directedOverride ?? parsed.directed;
   // Until Infomap runs. Read as undirected, the flow enters each node as it
   // leaves it.
@@ -116,6 +116,7 @@ export function networkToLoaded(
     },
     names: [...parsed.labels],
     physicalIds,
+    edgeList,
     networkText: text,
     boundaryFlow: exit,
     boundaryEnterFlow: exit,
@@ -124,42 +125,35 @@ export function networkToLoaded(
 
 /**
  * Parse a Pajek file or an edge list together with the node ids Infomap keys
- * its output by. One format decision drives both the parse and the ids:
- * - Pajek: the ids are the vertex numbers, read as Infomap reads them (0 and
- *   gaps allowed; the parse returns them as `ids`); the vertex labels are
- *   names, whatever they look like.
- * - Edge list: there are no names; each node token, read as an integer the way
- *   Infomap reads it, is the node's id. Infomap reads only integer ids, so a
- *   file with any other token has no ids. The parse keeps distinct tokens
- *   apart even when Infomap reads them as one id ("01" and "1"); withClustering
- *   reports such a pair.
- * The dispatch repeats d3gl's parseNetwork until the edge-list parse returns
- * these ids too (mapequation/d3gl#408); d3gl's format choice differs from
- * Infomap's for some files (mapequation/d3gl#407).
+ * its output by, as d3gl returns them (`ids`): a Pajek vertex number (0 and
+ * gaps allowed; the vertex labels are names, whatever they look like), or an
+ * edge-list label's value when every label is a plain integer id. An edge list
+ * with names, or a label Infomap writes differently ("01", "+1"), has no ids:
+ * Infomap runs on Navigator's numbering of it (infomapInput), but a partition
+ * file can't be matched to it. A line the parser refuses throws, naming the
+ * file and the line. The dispatch repeats d3gl's parseNetwork, whose format
+ * choice differs from Infomap's for some files (mapequation/d3gl#407).
  */
 function parseWithIds(
   text: string,
   filename: string,
-): { parsed: ParsedPajek; physicalIds?: number[] } {
-  const format = detectFormat(text, filename);
-  switch (format) {
-    case "pajek": {
-      const parsed = parsePajek(text);
-      return { parsed, physicalIds: parsed.ids && Array.from(parsed.ids) };
-    }
-    case "edgelist": {
-      const parsed = { ...parseEdgeList(text), directed: false };
-      const integerIds = parsed.labels.every((l) => /^\d+$/.test(l));
-      return {
-        parsed,
-        physicalIds: integerIds ? parsed.labels.map(Number) : undefined,
-      };
-    }
-    default: {
-      const unhandled: never = format;
-      throw new Error(`${filename}: no node ids for format ${unhandled}`);
-    }
+): { parsed: ParsedPajek; physicalIds?: number[]; edgeList: boolean } {
+  const edgeList = detectFormat(text, filename) !== "pajek";
+  let parsed: ParsedPajek;
+  try {
+    parsed = edgeList
+      ? { ...parseEdgeList(text), directed: false }
+      : parsePajek(text);
+  } catch (err) {
+    throw new Error(
+      `${filename}: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
+  return {
+    parsed,
+    physicalIds: parsed.ids && Array.from(parsed.ids),
+    edgeList,
+  };
 }
 
 export interface LoadCallbacks {
@@ -240,6 +234,7 @@ async function loadStructure(
     files: { [partition.name]: partition.text },
     onLog: cb.onLog,
   });
+  // The partition's ids are the file's, so Infomap reads the file with it.
   const clustered = withClustering(net, tree, flow);
   clustered.sources = [
     ...net.sources,
