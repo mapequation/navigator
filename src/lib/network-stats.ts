@@ -1,4 +1,5 @@
 import type { ModuleNode } from "@mapequation/d3gl/network";
+import { moduleChains } from "./module-chains";
 
 export interface NetworkStats {
   nodes: number;
@@ -72,14 +73,18 @@ export function computeModuleStats(
   source: { codelength?: number; ftree?: string } = {},
 ): ModuleStats {
   const top = new Set<number>();
-  const leafModules = new Set<string>();
   let levels = 0;
   for (const m of modules) {
     const p = m.path;
     if (!p.length) continue;
     top.add(p[0]);
     if (p.length > levels) levels = p.length;
-    leafModules.add(Array.prototype.slice.call(p, 0, -1).join(":"));
+  }
+  // Modules that directly hold a leaf: the distinct enclosing modules (a top-level leaf's is the root).
+  const { recordModule } = moduleChains(modules);
+  const leafModules = new Set<number>();
+  for (let r = 0; r < modules.length; r++) {
+    if (modules[r]?.path.length) leafModules.add(recordModule[r] ?? 0);
   }
   const match = source.ftree?.slice(0, 2000).match(/^# codelength (\S+) bits/m);
   return {
