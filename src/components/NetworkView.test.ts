@@ -308,6 +308,20 @@ describe("relayoutOf", () => {
     expect(relayoutOf(false, true, false)).toBeNull();
   });
 
+  it("goes on, warm and unframed, with what a re-clustering left unsettled", () => {
+    // d3gl's update() stops a running layout and keeps the positions
+    // (d3gl#547); new lumps are unsettled too. The kind of layout stays.
+    expect(relayoutOf(false, false, true, true, true)).toEqual({
+      nested: false,
+      warm: true,
+    });
+    expect(relayoutOf(true, true, true, true, true)).toEqual({
+      nested: true,
+      warm: true,
+    });
+    expect(relayoutOf(false, false, false, true, true)).toBeNull();
+  });
+
   it("goes on from where the nodes are: a nested map, framed as it goes", () => {
     // Streamed from the positions on screen (d3gl#454): warm, no transition
     // (that would solve out of sight first). It goes to its own size, about

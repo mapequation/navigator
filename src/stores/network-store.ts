@@ -198,6 +198,26 @@ function maxOf(values: ArrayLike<number> | undefined): number {
   return max;
 }
 
+/**
+ * `sg` with the state nodes' new `flow` and the physical flow its sum per
+ * physical node, as buildStateGraph sums it; every other buffer is shared.
+ */
+function withStateFlow(
+  sg: StateNetworkGraph,
+  flow: Float32Array,
+): StateNetworkGraph {
+  const physical = new Float32Array(sg.physicalCount);
+  for (let s = 0; s < flow.length; s++) {
+    const p = sg.stateToPhysical[s] ?? 0;
+    physical[p] = (physical[p] ?? 0) + (flow[s] ?? 0);
+  }
+  return {
+    ...sg,
+    state: { ...sg.state, flow },
+    physical: { ...sg.physical, flow: physical },
+  };
+}
+
 function maximaOf(g: NetworkGraph): {
   flow: number;
   degree: number;
@@ -351,13 +371,21 @@ export class NetworkStore {
 
   setNetwork(net: LoadedNetwork): void {
     this.topologyVersion++;
-    this.adopt(net, buildGraph(net.graph));
+    this.adopt(
+      net,
+      buildGraph(net.graph),
+      net.stateGraph ? buildStateGraph(net.stateGraph) : null,
+    );
   }
 
-  /** Make `net` (built as `g`) current and reset everything derived from it. */
-  private adopt(net: LoadedNetwork, g: NetworkGraph): void {
+  /** Make `net` (built as `g`, its state graph as `sg`) current and reset everything derived from it. */
+  private adopt(
+    net: LoadedNetwork,
+    g: NetworkGraph,
+    sg: StateNetworkGraph | null,
+  ): void {
     this.built = g;
-    this.builtState = net.stateGraph ? buildStateGraph(net.stateGraph) : null;
+    this.builtState = sg;
     this.moduleLeafCache.clear();
     this.current = net;
     this.selection = null;
@@ -372,6 +400,8 @@ export class NetworkStore {
     this.maxLinkFlow = maxLinkFlowOf(net, max.weight);
     this.lumped = null;
     this.lumpedMax = null;
+    this.lumpedEnterFlow = null;
+    this.lumpedExitFlow = null;
     this.physicalMax = this.builtState
       ? {
           ...maximaOf(this.builtState.physical),
@@ -411,6 +441,8 @@ export class NetworkStore {
     this.physicalMax = null;
     this.lumped = null;
     this.lumpedMax = null;
+    this.lumpedEnterFlow = null;
+    this.lumpedExitFlow = null;
     this.moduleLeafCache.clear();
     this.moduleTopLeaf = new Map();
   }
@@ -481,19 +513,17 @@ export class NetworkStore {
     const net = withClustering(cur, tree, flowText);
     // A partition the network was loaded with no longer produced these modules.
     net.sources = cur.sources.filter((f) => f.kind === "network");
-    if (cur.isStates) {
-      // A state network takes its modules with the state graph
-      // (stateNetwork()) — new data for the engine, so this is a load.
-      this.setNetwork(net);
-    } else {
-      // Same nodes and edges: share every buffer of the built graph (no CSR
-      // rebuild), the positions included, and swap in the new flow.
-      const flow = net.graph.nodeFlow;
-      this.adopt(net, {
-        ...built,
-        flow: flow ? Float32Array.from(flow) : null,
-      });
-    }
+    // Same nodes and links: share every buffer of the built graphs (no CSR
+    // rebuild), the positions included, and swap in the new flow; the engine
+    // takes it with the new modules in update() (d3gl#547).
+    const nodeFlow = net.graph.nodeFlow;
+    const flow = nodeFlow ? Float32Array.from(nodeFlow) : null;
+    const sg = this.builtState;
+    this.adopt(
+      net,
+      { ...built, flow },
+      sg && flow ? withStateFlow(sg, flow) : sg,
+    );
     this.occurrenceFiles = occurrenceFiles;
   }
 

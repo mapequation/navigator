@@ -73,17 +73,27 @@ const LAYOUT = { fit: true } as const;
  * Either way d3gl eases the nodes from where they are toward each frame of
  * the solve as it lands, so the switch glides rather than steps.
  *
- * So with Nested layout off a re-clustering lays nothing out: the new modules
- * regroup the LOD and recolour the nodes where they are. (A states network's
- * re-clustering is a load, see NetworkStore.)
+ * So with Nested layout off a re-clustering lays out only what is `unsettled`
+ * (a run d3gl's update() stopped, new lumps on screen): it goes on from where
+ * the nodes are, with the camera the user left. Otherwise the new modules
+ * regroup the LOD and recolour the nodes where they are (d3gl#547).
  */
 export function relayoutOf(
   want: boolean,
   have: boolean,
   simulation: boolean,
   recluster = false,
+  unsettled = false,
 ): Omit<NetworkLayoutOptions, "backend"> | null {
-  if (!simulation || want === have) return null;
+  if (!simulation) return null;
+  // d3gl lays out a network with modules as their nested map unless told
+  // nested: false (d3gl#566).
+  if (want === have)
+    return unsettled
+      ? want
+        ? { nested: true, warm: true }
+        : { nested: false, warm: true }
+      : null;
   if (!want) return { nested: false, fit: true, warm: true };
   return recluster
     ? { nested: true, warm: true }
@@ -579,7 +589,7 @@ export const NetworkView = observer(function NetworkView() {
      * the layout the network should have now, from where it is (see
      * relayoutOf); otherwise the LOD regroups in place.
      */
-    const relayout = (recluster = false): void => {
+    const relayout = (recluster = false, unsettled = false): void => {
       const nested =
         settings.nestedLayout &&
         holdsModules(store.current, settings.stateView);
@@ -588,6 +598,7 @@ export const NetworkView = observer(function NetworkView() {
         latest.get().nested,
         settings.simulation,
         recluster,
+        unsettled,
       );
       if (next) layout(next);
       else applyLod(lod.get());
@@ -642,9 +653,28 @@ export const NetworkView = observer(function NetworkView() {
       // swap when the new graph has flow and before it otherwise.
       const flowFirst = !!cur.graph.nodeFlow;
       if (!flowFirst) applyStyle(s);
-      if (cur.isStates && store.builtState) {
+      // The view on screen's layout as it was: update() stops a running one.
+      const was = latest.get();
+      let lumpSwitched = false;
+      if (reCluster) {
+        // Same nodes and links, new flow and modules (d3gl#547): every view
+        // keeps its positions and its layout.
+        net.update({
+          flow: graph.flow ?? undefined,
+          modules: cur.modules ?? null,
+          moduleLinks: cur.moduleLinks ?? null,
+        });
+        if (cur.isStates) {
+          // As on a load: lumped by the network's modules, if it has any.
+          const lump = settings.lumpStates && !!cur.modules;
+          lumpSwitched = (net.lumped !== null) !== lump;
+          if (lumpSwitched) net.lump(lump);
+          store.setLumped(net.lumped);
+        }
+      } else if (cur.isStates && store.builtState) {
         net.stateNetwork(store.builtState, {
           modules: cur.modules,
+          moduleLinks: cur.moduleLinks,
           view: settings.stateView,
           // As Nested layout: lumped by the network's modules, if it has any.
           lump: settings.lumpStates && !!cur.modules,
@@ -671,13 +701,21 @@ export const NetworkView = observer(function NetworkView() {
         layoutAnew();
         return;
       }
-      // data() has stopped any layout, and a nested map of the old modules
-      // is none of the new ones.
+      // A nested map of the old modules is none of the new ones. What isn't
+      // settled goes on, warm: a run update() stopped, and new lumps, which
+      // the state view settles now if it's on screen, else as it's next shown
+      // (as after a lump switch, which d3gl's lump() settles itself).
       layoutRun++;
-      runInAction(() =>
-        latestOf.physical.set({ nested: false, settled: true }),
-      );
-      relayout(true);
+      const newLumps = !!cur.isStates && store.lumped !== null;
+      const onScreen = slotOf(settings.stateView);
+      runInAction(() => {
+        const p = latestOf.physical.get();
+        const st = latestOf.state.get();
+        latestOf.physical.set({ nested: false, settled: p.settled });
+        latestOf.state.set({ nested: false, settled: st.settled && !newLumps });
+      });
+      if (lumpSwitched && onScreen === "state") follow();
+      else relayout(true, !was.settled || (newLumps && onScreen === "state"));
     };
 
     const disposers = [

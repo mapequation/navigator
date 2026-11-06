@@ -225,6 +225,56 @@ describe("NetworkStore", () => {
     expect(store.topologyVersion).toBe(version + 1);
   });
 
+  it("re-clusters a state network on the same positions, with the new flow", () => {
+    const text = `*Vertices 3
+1 "alpha"
+2 "beta"
+3 "gamma"
+*States
+1 1 "alpha-in"
+2 1 "alpha-out"
+3 2
+4 3
+*Links
+1 3 1
+3 2 1
+2 4 2
+4 1 1
+`;
+    const store = new NetworkStore();
+    store.setNetwork(networkToLoaded(text, "toy_states.net"));
+    const before = store.builtState;
+    const version = store.topologyVersion;
+    store.applyClustering({
+      version: "v2.14.0",
+      args: "",
+      startedAt: "",
+      completedIn: 0,
+      codelength: 1,
+      numLevels: 2,
+      numTopModules: 2,
+      relativeCodelengthSavings: 0,
+      directed: true,
+      flowModel: "directed",
+      higherOrder: true,
+      nodes: [
+        { path: [1, 1], flow: 0.4, name: "alpha", id: 1, stateId: 1 },
+        { path: [1, 2], flow: 0.1, name: "alpha", id: 1, stateId: 2 },
+        { path: [2, 1], flow: 0.3, name: "beta", id: 2, stateId: 3 },
+        { path: [2, 2], flow: 0.2, name: "gamma", id: 3, stateId: 4 },
+      ],
+      modules: [],
+    });
+    const after = store.builtState;
+    expect(after).not.toBe(before);
+    expect(after?.state.positions).toBe(before?.state.positions);
+    expect(after?.physical.positions).toBe(before?.physical.positions);
+    expect(Array.from(after?.physical.flow ?? [])).toEqual(
+      [0.5, 0.3, 0.2].map(Math.fround),
+    );
+    expect(store.topologyVersion).toBe(version);
+  });
+
   it("builds a raw state network's state graph, and selects a physical node as itself", () => {
     // Four state nodes over three physical nodes: alpha {0, 1}, beta {2}, gamma {3}.
     const text = `*Vertices 3
