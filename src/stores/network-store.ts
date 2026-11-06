@@ -532,14 +532,21 @@ export class NetworkStore {
     if (path) this.breadcrumb = path;
   }
 
-  /** Cluster the current network with an in-app Infomap run's tree and flow text. */
-  applyClustering(tree: InfomapTree, flowText?: string): void {
+  /**
+   * Cluster the current network with an in-app Infomap run's tree and flow
+   * text; `ids` are the ids the run gave the nodes (infomapInput).
+   */
+  applyClustering(
+    tree: InfomapTree,
+    flowText?: string,
+    ids?: readonly number[],
+  ): void {
     const cur = this.current;
     const built = this.built;
     if (!cur || !built) return;
     // Re-clustering keeps the dense node ids, so metadata-overlap files stay valid.
     const occurrenceFiles = this.occurrenceFiles;
-    const net = withClustering(cur, tree, flowText);
+    const net = withClustering(cur, tree, flowText, ids);
     // A partition the network was loaded with no longer produced these modules.
     net.sources = cur.sources.filter((f) => f.kind === "network");
     // Same nodes and links: share every buffer of the built graphs (no CSR

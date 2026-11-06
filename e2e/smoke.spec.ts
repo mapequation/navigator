@@ -1224,6 +1224,51 @@ test.describe("Network Navigator smoke", () => {
     await screenshot(page, "errors");
     expect(errors.filter(isFatal)).toEqual([]);
   });
+
+  test("raw + cluster: an edge list with names clusters, 01 and 1 as two nodes", async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await addFiles(page, [fixture("named-edges.txt")]);
+    await page.getByRole("button", { name: "Load", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Load network" }),
+    ).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
+
+    // Infomap can't read names, so it runs on Navigator's numbering of the
+    // nodes, on load and again on a re-run: the two triangles are two modules.
+    const rerun = page.getByRole("button", { name: "Re-run Infomap" });
+    const topModules = page
+      .locator("dt", { hasText: "Top modules" })
+      .locator("xpath=following-sibling::dd[1]");
+    await expect(rerun).toBeVisible({ timeout: 30_000 });
+    await expect(topModules).toHaveText("2");
+    await rerun.click();
+    await expect(rerun).toBeEnabled({ timeout: 30_000 });
+    await expect(topModules).toHaveText("2");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    expect(errors.filter(isFatal)).toEqual([]);
+  });
+
+  test("errors: an edge-list line without a target names its line", async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await addFiles(page, [fixture("short-edges.txt")]);
+    await page.getByRole("button", { name: "Load", exact: true }).click();
+
+    const alert = page.getByRole("alert");
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText(
+      'short-edges.txt: parseEdgeList: line 3 ("3"): expected a source and a target node',
+    );
+    await expect(
+      page.getByRole("heading", { name: "Load network" }),
+    ).toBeVisible();
+    expect(errors.filter(isFatal)).toEqual([]);
+  });
 });
 
 // Manual-check item (not automated): `?infomap` query-param handover from

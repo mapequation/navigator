@@ -82,11 +82,14 @@ export interface LoadedNetwork {
   /** States only: display name per dense physical node (stateGraph's physical index). */
   physicalNames?: string[];
   /**
-   * The id Infomap keys each node by, per dense index (for states: the state's
-   * physical id). Absent when the file has none: an edge list with non-integer
-   * node tokens, which Infomap cannot read.
+   * The id Infomap keys each node by when it reads the file, per dense index
+   * (for states: the state's physical id). Absent when the file has none: an
+   * edge list whose labels aren't all plain integer ids, which only a partition
+   * file needs (in-app runs read Navigator's numbering, see infomapInput).
    */
   physicalIds?: number[];
+  /** The network file is an edge list, which Infomap reads as Navigator numbers it (infomapInput). */
+  edgeList?: boolean;
   /** Original state id per dense index (states only). */
   stateIds?: number[];
   /** Per-node Infomap paths, dense-index keyed (kind === "clustered"). */

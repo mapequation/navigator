@@ -116,10 +116,22 @@ describe("networkToLoaded", () => {
     expect(net.names).toEqual(["5", "0", "7"]);
   });
 
-  it("gives an edge list with non-integer tokens names but no ids", () => {
+  it("gives an edge list with names its names but no ids", () => {
     const net = networkToLoaded(NAMED_EDGES, "named.txt");
     expect(net.names).toEqual(["a", "b", "c"]);
     expect(net.physicalIds).toBeUndefined();
+  });
+
+  it("gives an edge-list label Infomap writes differently (01) no ids", () => {
+    const net = networkToLoaded("01 2\n1 3\n", "lead.txt");
+    expect(net.names).toEqual(["01", "2", "1", "3"]);
+    expect(net.physicalIds).toBeUndefined();
+  });
+
+  it("throws on an edge-list line without a target, naming the file and the line", () => {
+    expect(() => networkToLoaded("1 2\n3\n", "short.txt")).toThrow(
+      'short.txt: parseEdgeList: line 2 ("3"): expected a source and a target node',
+    );
   });
 
   it("detects state networks", () => {
@@ -312,7 +324,7 @@ describe("loadFiles: a partition applies by Infomap's node ids", () => {
     expect(net.names).toEqual(names);
   });
 
-  it("an edge list with non-integer tokens cannot take a partition", async () => {
+  it("an edge list with names cannot take a partition", async () => {
     vi.mocked(runInfomap).mockResolvedValueOnce({
       tree: infomapTree([{ path: [1, 1], flow: 1, name: "a", id: 1 }]),
     });
@@ -324,12 +336,13 @@ describe("loadFiles: a partition applies by Infomap's node ids", () => {
         ],
         opts,
       ),
-    ).rejects.toThrow("named.txt has no integer node ids");
+    ).rejects.toThrow(
+      "named.txt: Infomap's output can't be matched to its nodes",
+    );
   });
 
-  it("an edge list whose distinct tokens Infomap reads as one id says so", async () => {
-    // The parse keeps "01" and "1" apart; Infomap reads both as node 1
-    // (Infomap CLI 2.9.2 outputs nodes 1, 2, 3 for this file).
+  it("an edge list with a label Infomap writes differently (01) cannot take a partition", async () => {
+    // Infomap reads "01" and "1" as node 1 (Infomap CLI 2.9.2 outputs nodes 1, 2, 3).
     vi.mocked(runInfomap).mockResolvedValueOnce({
       tree: infomapTree([
         { path: [1, 1], flow: 0.5, name: "1", id: 1 },
@@ -346,7 +359,7 @@ describe("loadFiles: a partition applies by Infomap's node ids", () => {
         opts,
       ),
     ).rejects.toThrow(
-      'lead.txt: nodes "01" and "1" are two nodes here but one to Infomap (id 1)',
+      "lead.txt: Infomap's output can't be matched to its nodes",
     );
   });
 });

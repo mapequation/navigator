@@ -3,6 +3,22 @@ import { boundaryFlow, moduleFlowOf } from "./boundary-flow";
 import type { InfomapTree, InfomapTreeNode, LoadedNetwork } from "./types";
 
 /**
+ * The ids Infomap gives the nodes when it reads the network file itself, per
+ * dense index: state ids for a state network, else the file's node ids. Throws
+ * when the file has none: an edge list whose labels aren't all plain integer
+ * ids, which Infomap refuses (names) or reads as other nodes (01 as 1).
+ */
+export function fileIds(net: LoadedNetwork): readonly number[] {
+  const ids = net.isStates && net.stateIds ? net.stateIds : net.physicalIds;
+  if (!ids) {
+    throw new Error(
+      `${net.filename}: Infomap's output can't be matched to its nodes; that needs every node label to be a plain integer id, such as 0, 7 or 42 (not a name, 01 or +1)`,
+    );
+  }
+  return ids;
+}
+
+/**
  * Attach an Infomap JSON tree to a raw network, keeping the real edges.
  * No moduleLinks: the raw graph already holds every leaf edge, and d3gl sums
  * moduleLinks on top of the graph's edges, so they would count twice.
@@ -10,21 +26,19 @@ import type { InfomapTree, InfomapTreeNode, LoadedNetwork } from "./types";
  * `flowText` is the same run's flow output (-o flow). With it, each node gets
  * its exit flow (its flow border) and enter flow along links, marked partial
  * where they miss the tree's module exit and enter flow; see boundaryFlow.
+ *
+ * `ids` are the ids the run gave the nodes, per dense index: the file's
+ * (fileIds) unless Navigator wrote the network for it (infomapInput).
  */
 export function withClustering(
   net: LoadedNetwork,
   tree: InfomapTree,
   flowText?: string,
+  ids: readonly number[] = fileIds(net),
 ): LoadedNetwork {
   // Raw states networks are keyed by state id; plain networks by physical id.
   const keyOf = (n: InfomapTreeNode): number =>
     net.isStates ? (n.stateId ?? n.id) : n.id;
-  const ids = net.isStates && net.stateIds ? net.stateIds : net.physicalIds;
-  if (!ids) {
-    throw new Error(
-      `${net.filename} has no integer node ids to match Infomap output to`,
-    );
-  }
   // Each node needs an id of its own: two nodes sharing one would leave one of
   // them unmatched, so name the pair rather than report it as missing below.
   const denseIndex = new Map<number, number>();

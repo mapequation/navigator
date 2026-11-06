@@ -1,5 +1,6 @@
 import { makeAutoObservable, reaction, runInAction } from "mobx";
 import { buildInfomapArgs, infomapArgString } from "../lib/infomap-args";
+import { infomapInput } from "../lib/infomap-input";
 import { runInfomap } from "../lib/run-infomap";
 import type { NetworkStore } from "./network-store";
 import type { UiStore } from "./ui-store";
@@ -68,9 +69,11 @@ export class ClusterStore {
     let error: string | null = null;
     try {
       ui.startInfomap(this.command);
+      // An edge list goes as Navigator numbers it; see infomapInput.
+      const input = infomapInput(cur);
       const { tree, flow } = await runInfomap({
-        network: cur.networkText,
-        filename: cur.filename,
+        network: input.network,
+        filename: input.filename,
         args: this.args(),
         flags: ui.infomapFlags,
         onLog: ui.onInfomapLog,
@@ -78,7 +81,7 @@ export class ClusterStore {
       });
       // Clustered as loaded: a network loaded since is not this run's.
       if (!abort.signal.aborted && network.current === cur)
-        network.applyClustering(tree, flow);
+        network.applyClustering(tree, flow, input.ids);
     } catch (err) {
       if (abort.signal.aborted) return; // stop() has ended it
       error = err instanceof Error ? err.message : String(err);
