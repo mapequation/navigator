@@ -58,6 +58,19 @@ describe("LibraryStore", () => {
     expect(library.activeSort).toEqual({ key: "nodes", descending: true });
   });
 
+  it("keeps one sort direction for every key", () => {
+    const { library } = stores();
+    library.setSort({ ...library.sort, descending: true });
+    library.setSort({ ...library.sort, key: "nodes" });
+    expect(library.activeSort).toEqual({ key: "nodes", descending: true });
+    library.setSort({ ...library.sort, descending: false });
+    library.setSort({ ...library.sort, key: "bytes" });
+    expect(library.activeSort).toEqual({ key: "bytes", descending: false });
+    // Without a query, Best match is by name, in the same direction.
+    library.setSort({ key: "match", descending: true });
+    expect(library.activeSort).toEqual({ key: "name", descending: true });
+  });
+
   it("toggles facet values and keeps the query when clearing filters", () => {
     const { library } = stores();
     library.setQuery("web");

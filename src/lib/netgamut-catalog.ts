@@ -310,7 +310,10 @@ export interface CatalogSort {
   descending: boolean;
 }
 
-/** The entries that pass every filter, sorted; "match" ranks by matchScore, then by name. */
+/**
+ * The entries that pass every filter, sorted by `sort.key` (ties by name), ascending or descending; "match"
+ * ranks by matchScore, best first when ascending.
+ */
 export function searchCatalog(
   entries: readonly CatalogEntry[],
   filters: CatalogFilters,
@@ -327,16 +330,21 @@ export function searchCatalog(
   const byName = (a: CatalogEntry, b: CatalogEntry): number =>
     a.name.localeCompare(b.name, "en", { sensitivity: "base" }) ||
     a.key.localeCompare(b.key);
-  scored.sort(([a, sa], [b, sb]) => {
+  // Ascending, then turned for descending: best match first, A to Z, smallest first.
+  const ascending = (
+    [a, sa]: [CatalogEntry, number],
+    [b, sb]: [CatalogEntry, number],
+  ): number => {
     switch (sort.key) {
       case "match":
         return sb - sa || byName(a, b);
       case "name":
-        return sign * byName(a, b);
+        return byName(a, b);
       default:
-        return sign * (a[sort.key] - b[sort.key]) || byName(a, b);
+        return a[sort.key] - b[sort.key] || byName(a, b);
     }
-  });
+  };
+  scored.sort((x, y) => sign * ascending(x, y));
   return scored.map(([e]) => e);
 }
 

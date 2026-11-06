@@ -21,7 +21,6 @@ function Card({
   meta,
   about,
   stats,
-  hint,
   pending,
   progress,
   loaded = false,
@@ -35,8 +34,6 @@ function Card({
   meta: React.ReactNode;
   about: React.ReactNode;
   stats?: React.ReactNode;
-  /** What to try once it is loaded. */
-  hint?: string;
   pending: boolean;
   /** A download in progress for this card, with its Cancel. */
   progress?: boolean;
@@ -67,7 +64,6 @@ function Card({
       {stats && (
         <p className="mt-2 text-xs tabular-nums text-neutral-700">{stats}</p>
       )}
-      {hint && <p className="mt-2 text-xs text-neutral-500">{hint}</p>}
       <div className="mt-auto pt-3">
         {progress ? (
           // Above the card's button, so Cancel takes the click.
@@ -199,12 +195,21 @@ export const ExamplesTab = observer(function ExamplesTab({
               key={ex.id}
               title={ex.title}
               meta={
-                <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-neutral-600">
-                  {ex.format}
-                </span>
+                <>
+                  <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-neutral-600">
+                    {ex.format}
+                  </span>
+                  {ex.labels.map((label) => (
+                    <span
+                      key={label}
+                      className="rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-700 ring-1 ring-violet-200"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </>
               }
               about={ex.about}
-              hint={ex.hint}
               pending={pending === ex.id}
               disabled={disabled}
               onLoad={() => void loadBundled(ex)}

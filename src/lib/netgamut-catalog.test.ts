@@ -197,6 +197,17 @@ describe("searchCatalog", () => {
     ]);
   });
 
+  it("turns every order for descending, Best match too", () => {
+    const sort = { key: "match", descending: true } as const;
+    expect(keys({ ...NO_FILTERS, query: "web" }, sort)).toEqual([
+      "netzschleuder/polblogs",
+      "snap/web-Google",
+    ]);
+    expect(keys(NO_FILTERS, { key: "name", descending: true })[0]).toBe(
+      "snap/web-Google",
+    );
+  });
+
   it("sorts by a figure, either way, ties by name", () => {
     expect(keys(NO_FILTERS, { key: "nodes", descending: true })[0]).toBe(
       "snap/web-Google",

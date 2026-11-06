@@ -24,7 +24,13 @@ import {
 import { useStores } from "../../stores";
 import { SearchShortcutKbd } from "../Search";
 import { bytes, compact, domainColor, full, LARGE_LINKS } from "./format";
-import { ArrowIcon, CatalogIcon, ExternalIcon, InfoIcon } from "./icons";
+import {
+  ArrowIcon,
+  CatalogIcon,
+  ExternalIcon,
+  InfoIcon,
+  SortIcon,
+} from "./icons";
 import { LoadedBadge } from "./LoadedBadge";
 import { LoadProgress } from "./LoadProgress";
 import { SizeChart } from "./SizeChart";
@@ -641,7 +647,7 @@ export const BrowseTab = observer(function BrowseTab({
   const sort = library.activeSort;
   const query = library.filters.query.trim();
   const active = countFilters(library.filters);
-  const direction = sort.descending ? "Largest first" : "Smallest first";
+  const direction = sort.descending ? "Descending" : "Ascending";
 
   // The search field takes focus when the tab opens, and on the search shortcut.
   useEffect(() => {
@@ -772,15 +778,8 @@ export const BrowseTab = observer(function BrowseTab({
             aria-label="Sort by"
             selectedKey={sort.key}
             onSelectionChange={(k) =>
-              library.setSort({
-                key: k as SortKey,
-                descending:
-                  k === "nodes" || k === "links" || k === "bytes"
-                    ? sort.key === k
-                      ? sort.descending
-                      : false
-                    : false,
-              })
+              // The direction stays as it is: one setting for every key.
+              library.setSort({ ...library.sort, key: k as SortKey })
             }
             className="w-36"
           >
@@ -798,19 +797,21 @@ export const BrowseTab = observer(function BrowseTab({
               </ListBox>
             </Select.Popover>
           </Select>
-          {sort.key !== "match" && sort.key !== "name" && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-9 px-2.5 text-xs"
-              aria-label={`Sort direction: ${direction}`}
-              onPress={() =>
-                library.setSort({ ...sort, descending: !sort.descending })
-              }
-            >
-              {direction}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-9 w-28 justify-start px-2.5 text-xs"
+            aria-label={`Sort direction: ${direction}`}
+            onPress={() =>
+              library.setSort({
+                ...library.sort,
+                descending: !library.sort.descending,
+              })
+            }
+          >
+            <SortIcon descending={sort.descending} className="h-3.5 w-3.5" />
+            {direction}
+          </Button>
         </div>
       </div>
       <Filters />

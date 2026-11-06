@@ -9,10 +9,10 @@ export interface BundledExample {
   title: string;
   /** The file kind, as a short tag. */
   format: string;
+  /** What kind of network it is, as badges beside the format ("state network"). */
+  labels: readonly string[];
   /** What the example shows. */
   about: string;
-  /** What to try once it is loaded. */
-  hint: string;
   read: () => Promise<LoadedNetwork>;
 }
 
@@ -65,8 +65,8 @@ export const BUNDLED_EXAMPLES: readonly BundledExample[] = [
     id: "citation",
     title: "Citation network",
     format: ".ftree",
+    labels: [],
     about: "An Infomap result: a hierarchy of named modules.",
-    hint: "Double-click a module to zoom to it.",
     read: readCitation,
   },
   {
@@ -74,9 +74,9 @@ export const BUNDLED_EXAMPLES: readonly BundledExample[] = [
     id: "les-miserables",
     title: "Les Misérables",
     format: ".net",
+    labels: ["state network"],
     about:
-      "The novel's characters as a state network, without modules: Infomap finds them as it loads.",
-    hint: "Re-run Infomap with other options in the Modules panel.",
+      "The novel's characters, without modules: Infomap finds them as it loads.",
     read: readLesMiserables,
   },
 ];

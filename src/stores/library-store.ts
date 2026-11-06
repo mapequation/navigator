@@ -122,7 +122,10 @@ export class LibraryStore {
   catalogError: string | null = null;
   catalogLoading = false;
   filters: CatalogFilters = NO_FILTERS;
-  /** "match" ranks by the query; without one the list is by name. */
+  /**
+   * "match" ranks by the query; without one the list is by name. The direction is one setting for every key:
+   * switching the key keeps it.
+   */
   sort: CatalogSort = { key: "match", descending: false };
   selectedKey: string | null = null;
   /** The list row under the pointer, marked in the chart. */
@@ -190,12 +193,11 @@ export class LibraryStore {
     return new Map(this.entries.map((e) => [e.key, e]));
   }
 
-  /** The sort in effect: "match" means by name while there is no query; names run A to Z only. */
+  /** The sort in effect: "match" means by name while there is no query, in the same direction. */
   get activeSort(): CatalogSort {
-    const byName =
-      this.sort.key === "name" ||
-      (this.sort.key === "match" && !this.filters.query.trim());
-    return byName ? { key: "name", descending: false } : this.sort;
+    return this.sort.key === "match" && !this.filters.query.trim()
+      ? { ...this.sort, key: "name" }
+      : this.sort;
   }
 
   get results(): CatalogEntry[] {
