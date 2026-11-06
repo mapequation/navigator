@@ -19,6 +19,7 @@ import {
   searchCatalog,
 } from "../lib/netgamut-catalog";
 import type { NetgamutOrigin } from "../lib/types";
+import type { ClusterStore } from "./cluster-store";
 import type { NetworkStore } from "./network-store";
 import { nextPaint, type UiStore } from "./ui-store";
 
@@ -87,14 +88,22 @@ export function originOf(dataset: NetgamutDataset): NetgamutOrigin {
   };
 }
 
-/** The URL names the loaded network's catalog key, so a reload or a shared link opens it again. */
-function syncUrl(key: string | null): void {
+/**
+ * The URL names the loaded network's catalog key, and noInfomap when it loaded without Infomap, so a reload or
+ * a shared link opens it again the same way.
+ */
+function syncUrl(key: string | null, noInfomap: boolean): void {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
   if (key) url.searchParams.set("netgamut", key);
   else url.searchParams.delete("netgamut");
-  // Keep the key's slash readable: `?netgamut=snap/web-Google`.
-  const search = url.searchParams.toString().replaceAll("%2F", "/");
+  if (key && noInfomap) url.searchParams.set("noInfomap", "");
+  else url.searchParams.delete("noInfomap");
+  // Keep the key's slash readable, and a flag without "=": `?netgamut=snap/web-Google&noInfomap`.
+  const search = url.searchParams
+    .toString()
+    .replaceAll("%2F", "/")
+    .replace(/=(?=&|$)/g, "");
   window.history.replaceState(
     window.history.state,
     "",
@@ -118,6 +127,8 @@ export class LibraryStore {
   selectedKey: string | null = null;
   /** The list row under the pointer, marked in the chart. */
   hoverKey: string | null = null;
+  /** Bumped to move the focus to the catalog search (the search shortcut). */
+  searchFocus = 0;
   /** The catalog network downloading now; null once its file is read, or when none is. */
   download: {
     key: string;
@@ -138,17 +149,29 @@ export class LibraryStore {
   constructor(
     private network: NetworkStore,
     private ui: UiStore,
+    private cluster: ClusterStore,
   ) {
-    makeAutoObservable<this, "network" | "ui" | "abort" | "noticeTimer">(this, {
+    makeAutoObservable<
+      this,
+      "network" | "ui" | "cluster" | "abort" | "noticeTimer"
+    >(this, {
       network: false,
       ui: false,
+      cluster: false,
       abort: false,
       noticeTimer: false,
       catalog: observable.ref, // replaced whole, never mutated
     });
     reaction(
-      () => this.network.current?.origin?.key ?? null,
-      (key) => syncUrl(key),
+      () => {
+        const cur = this.network.current;
+        return [
+          cur?.origin?.key ?? null,
+          cur?.loadOptions?.noInfomap ?? false,
+        ] as const;
+      },
+      ([key, noInfomap]) => syncUrl(key, noInfomap),
+      { equals: (a, b) => a[0] === b[0] && a[1] === b[1] },
     );
     // A load ends when its network is on screen (the view clears the phase), or when it fails.
     reaction(
@@ -167,11 +190,12 @@ export class LibraryStore {
     return new Map(this.entries.map((e) => [e.key, e]));
   }
 
-  /** The sort in effect: "match" means by name while there is no query. */
+  /** The sort in effect: "match" means by name while there is no query; names run A to Z only. */
   get activeSort(): CatalogSort {
-    return this.sort.key === "match" && !this.filters.query.trim()
-      ? { key: "name", descending: false }
-      : this.sort;
+    const byName =
+      this.sort.key === "name" ||
+      (this.sort.key === "match" && !this.filters.query.trim());
+    return byName ? { key: "name", descending: false } : this.sort;
   }
 
   get results(): CatalogEntry[] {
@@ -241,6 +265,11 @@ export class LibraryStore {
   select = (key: string | null): void => {
     this.selectedKey = key;
   };
+  /** Show the Browse tab with the focus in its search. */
+  focusSearch = (): void => {
+    this.setTab("browse");
+    this.searchFocus++;
+  };
   setHover = (key: string | null): void => {
     this.hoverKey = key;
   };
@@ -267,12 +296,17 @@ export class LibraryStore {
   };
 
   /**
-   * Load the catalog network `key`, as if its file were dropped alone: raw, until Infomap runs. The load
+   * Load the catalog network `key`, as if its file were dropped alone: Infomap clusters it as it loads. The load
    * dialog shows the progress and stays open, busy, until the network is on screen (ui.viewReady); a
    * download can be cancelled.
    */
-  loadNetgamut = async (key: string): Promise<void> => {
+  loadNetgamut = async (
+    key: string,
+    { noInfomap = false }: { noInfomap?: boolean } = {},
+  ): Promise<void> => {
     const { network, ui } = this;
+    // A new network replaces the one Infomap may be clustering now.
+    this.cluster.stop();
     this.abort?.abort();
     const abort = new AbortController();
     this.abort = abort;
@@ -309,10 +343,11 @@ export class LibraryStore {
       });
       ui.setViewPhase("Reading the network…");
       await nextPaint();
+      // noInfomap: the network stays without modules (Infomap otherwise clusters it as it loads).
       const net = await loadFiles([{ name, text }], {
         directed: dataset.directed,
         twoLevel: false,
-        noInfomap: false,
+        noInfomap,
       });
       if (signal.aborted) return;
       net.origin = originOf(dataset);

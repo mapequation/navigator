@@ -155,14 +155,16 @@ export const ExamplesTab = observer(function ExamplesTab({
 }: {
   ctx: LoadContext;
 }) {
-  const { ui, library, network } = useStores();
+  const { library, network, cluster } = useStores();
   const loadedKey = network.current?.origin?.key;
   const [pending, setPending] = useState<string | null>(null);
-  const disabled = ctx.loading || ui.infomapRunning;
+  // A load stops an Infomap run that clusters the network shown now.
+  const disabled = ctx.loading;
   const catalog = library.catalog;
 
   const loadBundled = async (ex: BundledExample): Promise<void> => {
     setPending(ex.id);
+    cluster.stop();
     ctx.setBusy(true);
     try {
       await ctx.finish(await ex.read());
@@ -188,8 +190,8 @@ export const ExamplesTab = observer(function ExamplesTab({
           Start here
         </h3>
         <p className="mb-3 text-xs text-neutral-500">
-          Served with the Navigator: one network already clustered, one to run
-          Infomap on.
+          Served with the Navigator: an Infomap result, and a state network that
+          Infomap clusters as it loads.
         </p>
         <ul className="grid gap-3 sm:grid-cols-2">
           {BUNDLED_EXAMPLES.map((ex) => (
@@ -233,7 +235,7 @@ export const ExamplesTab = observer(function ExamplesTab({
             </h3>
             <p className="text-xs text-neutral-500">
               Well-studied networks from the netgamut catalog, small to large.
-              They open without modules: run Infomap in the Modules panel.
+              Infomap finds their modules as they load.
             </p>
           </div>
           <Button

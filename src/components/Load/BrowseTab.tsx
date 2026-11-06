@@ -14,6 +14,7 @@ import {
   citationText,
   countFilters,
   type Direction,
+  explorerUrl,
   NETGAMUT_EXPLORER,
   plainSummary,
   SIZE_BANDS,
@@ -21,6 +22,7 @@ import {
   sourceLabel,
 } from "../../lib/netgamut-catalog";
 import { useStores } from "../../stores";
+import { SearchShortcutKbd } from "../Search";
 import { bytes, compact, domainColor, full, LARGE_LINKS } from "./format";
 import { ArrowIcon, CatalogIcon, ExternalIcon, InfoIcon } from "./icons";
 import { LoadedBadge } from "./LoadedBadge";
@@ -575,17 +577,28 @@ const Detail = observer(function Detail({ loading }: { loading: boolean }) {
               this file holds one of them.
             </p>
           )}
-          {e.url && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium">
             <a
-              href={e.url}
+              href={explorerUrl(e.key)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 self-start text-xs font-medium text-blue-600 hover:underline"
+              className="inline-flex items-center gap-1 text-blue-600 hover:underline"
             >
-              The dataset on {sourceLabel(e.source)}
+              In netgamut’s catalog
               <ExternalIcon className="h-3.5 w-3.5" />
             </a>
-          )}
+            {e.url && (
+              <a
+                href={e.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+              >
+                On {sourceLabel(e.source)}
+                <ExternalIcon className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-2 px-5 py-4 text-sm text-neutral-600">
@@ -628,19 +641,15 @@ export const BrowseTab = observer(function BrowseTab({
   const sort = library.activeSort;
   const query = library.filters.query.trim();
   const active = countFilters(library.filters);
-  const direction =
-    sort.key === "name"
-      ? sort.descending
-        ? "Z → A"
-        : "A → Z"
-      : sort.descending
-        ? "Largest first"
-        : "Smallest first";
+  const direction = sort.descending ? "Largest first" : "Smallest first";
 
-  // The search field takes focus when the tab opens.
+  // The search field takes focus when the tab opens, and on the search shortcut.
   useEffect(() => {
-    if (catalog) input.current?.focus();
-  }, [catalog]);
+    if (catalog && library.searchFocus >= 0) {
+      input.current?.focus();
+      input.current?.select();
+    }
+  }, [catalog, library.searchFocus]);
 
   if (!catalog) {
     // The tab keeps its frame while the catalog loads or when it cannot: search, filters and chart wait,
@@ -750,7 +759,11 @@ export const BrowseTab = observer(function BrowseTab({
               placeholder="Search by name, topic or author…"
               className="text-sm"
             />
-            <SearchField.ClearButton />
+            {library.filters.query ? (
+              <SearchField.ClearButton />
+            ) : (
+              <SearchShortcutKbd />
+            )}
           </SearchField.Group>
         </SearchField>
         <div className="flex items-center gap-1.5">
@@ -785,7 +798,7 @@ export const BrowseTab = observer(function BrowseTab({
               </ListBox>
             </Select.Popover>
           </Select>
-          {sort.key !== "match" && (
+          {sort.key !== "match" && sort.key !== "name" && (
             <Button
               size="sm"
               variant="ghost"

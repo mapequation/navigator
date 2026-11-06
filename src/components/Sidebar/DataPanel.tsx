@@ -1,7 +1,11 @@
 import { AlertDialog, Button, Chip, Popover, Tooltip } from "@heroui/react";
 import { observer } from "mobx-react-lite";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
-import { citationText, sourceLabel } from "../../lib/netgamut-catalog";
+import {
+  citationText,
+  explorerUrl,
+  sourceLabel,
+} from "../../lib/netgamut-catalog";
 import { formatBytes, formatNumber } from "../../lib/network-stats";
 import type { NetworkOrigin } from "../../lib/types";
 import { useStores } from "../../stores";
@@ -126,7 +130,15 @@ const Origin = observer(function Origin({ origin }: { origin: NetworkOrigin }) {
             {sourceLabel(origin.source)}
           </span>
         )}{" "}
-        via the netgamut catalog
+        via the{" "}
+        <a
+          href={explorerUrl(origin.key)}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-neutral-700 hover:text-blue-700 hover:underline"
+        >
+          netgamut catalog
+        </a>
       </p>
       <div className="flex gap-1">
         <Button
@@ -183,7 +195,7 @@ const Origin = observer(function Origin({ origin }: { origin: NetworkOrigin }) {
 });
 
 export const DataPanel = observer(function DataPanel() {
-  const { network: store, ui } = useStores();
+  const { network: store, ui, cluster } = useStores();
   const [confirmClear, setConfirmClear] = useState(false);
   const list = useRef<HTMLUListElement>(null);
   /** Index of the remove button to focus once a removed row is gone. */
@@ -201,6 +213,8 @@ export const DataPanel = observer(function DataPanel() {
   if (!cur) return null;
 
   const clear = (): void => {
+    // Infomap may be clustering it: the run goes with it.
+    cluster.stop();
     store.clear();
     ui.clearInfomapRun();
     ui.setLoadError(null);
@@ -247,7 +261,7 @@ export const DataPanel = observer(function DataPanel() {
             name={f.name}
             size={f.size}
             removeLabel="Clear network"
-            isDisabled={ui.infomapRunning}
+            isDisabled={ui.infomapRunning && !cluster.running}
             onRemove={() => setConfirmClear(true)}
           />
         ))}

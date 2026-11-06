@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NETGAMUT_MIRROR, type NetgamutManifest } from "../lib/netgamut";
+import { ClusterStore } from "./cluster-store";
 import { LibraryStore, originOf } from "./library-store";
 import { NetworkStore } from "./network-store";
 import { UiStore } from "./ui-store";
@@ -35,7 +36,13 @@ const gzip = async (text: string): Promise<Uint8Array<ArrayBuffer>> =>
 function stores() {
   const network = new NetworkStore();
   const ui = new UiStore();
-  return { network, ui, library: new LibraryStore(network, ui) };
+  const cluster = new ClusterStore(network, ui);
+  return {
+    network,
+    ui,
+    cluster,
+    library: new LibraryStore(network, ui, cluster),
+  };
 }
 
 describe("LibraryStore", () => {
@@ -110,6 +117,32 @@ describe("LibraryStore", () => {
       name: "tiny",
       url: "https://example.org/tiny",
     });
+  });
+
+  it("loads a catalog network without Infomap when asked", async () => {
+    const gz = await gzip(PAJEK);
+    const manifest: NetgamutManifest = {
+      netgamut: "0.3.0",
+      built: "2026-11-04T00:00:00Z",
+      bytes: gz.length,
+      datasets: [{ ...DATASET, bytes: gz.length }],
+    };
+    const file = new URL(DATASET.file, NETGAMUT_MIRROR).href;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === NETGAMUT_MIRROR
+          ? new Response(JSON.stringify(manifest))
+          : url === file
+            ? new Response(gz)
+            : new Response("", { status: 404 }),
+      ),
+    );
+    const { library, network, cluster } = stores();
+    await library.loadNetgamut(DATASET.key, { noInfomap: true });
+    expect(network.current?.loadOptions?.noInfomap).toBe(true);
+    expect(network.current?.modules).toBeUndefined();
+    expect(cluster.running).toBe(false);
   });
 
   it("keeps what is loaded when a download is cancelled", async () => {

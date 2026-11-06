@@ -55,6 +55,16 @@ async function addFiles(page: Page, files: string[]): Promise<void> {
   await page.locator('input[type="file"]').setInputFiles(files);
 }
 
+/**
+ * Switch No Infomap on for the staged files: the network loads as it is, without modules, until the test
+ * runs Infomap itself (a load otherwise clusters a network without modules).
+ */
+async function noInfomap(page: Page): Promise<void> {
+  const off = page.getByRole("switch", { name: /No Infomap/ });
+  await off.click({ force: true }); // see the partition test
+  await expect(off).toBeChecked();
+}
+
 type Transform = { k: number; x: number; y: number };
 
 /** The camera: d3gl keeps d3-zoom's transform (on its host) synced to it. */
@@ -202,7 +212,7 @@ test.describe("Network Navigator smoke", () => {
     expect(errors.filter(isFatal)).toEqual([]);
   });
 
-  test("example: Les Misérables loads as a raw state network", async ({
+  test("example: Les Misérables loads as a state network that Infomap clusters", async ({
     page,
   }) => {
     const errors = collectErrors(page);
@@ -216,13 +226,13 @@ test.describe("Network Navigator smoke", () => {
     ).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
     await expect(page.locator("main canvas")).toBeVisible({ timeout: 30_000 });
 
-    // States, and no modules until Infomap runs.
+    // States, and Infomap clusters them as they load.
     await expect(
       page.getByRole("radiogroup", { name: "State view" }),
     ).toBeVisible();
     await expect(
-      page.getByText("Not clustered yet. Run Infomap to find modules."),
-    ).toBeVisible();
+      page.getByRole("button", { name: "Re-run Infomap" }),
+    ).toBeVisible({ timeout: 30_000 });
     expect(errors.filter(isFatal)).toEqual([]);
   });
 
@@ -287,6 +297,7 @@ test.describe("Network Navigator smoke", () => {
     const errors = collectErrors(page);
     await page.goto("/");
     await addFiles(page, [fixture("toy.net")]);
+    await noInfomap(page);
     await page.getByRole("button", { name: "Load", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Load network" }),
@@ -390,6 +401,7 @@ test.describe("Network Navigator smoke", () => {
     const errors = collectErrors(page);
     await page.goto("/");
     await addFiles(page, [fixture("toy_states.net")]);
+    await noInfomap(page);
     await page.getByRole("button", { name: "Load", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Load network" }),
@@ -478,6 +490,7 @@ test.describe("Network Navigator smoke", () => {
     // Clustered, toy_states.net lumps its 4 state nodes into 3: a per-state-node
     // style array applied to the lumps would throw (flowBorder.flow).
     await addFiles(page, [fixture("toy_states.net")]);
+    await noInfomap(page);
     await page.getByRole("button", { name: "Load", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Load network" }),
@@ -534,6 +547,7 @@ test.describe("Network Navigator smoke", () => {
     const errors = collectErrors(page);
     await page.goto("/");
     await addFiles(page, [fixture("toy_states.net")]);
+    await noInfomap(page);
     await page.getByRole("button", { name: "Load", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Load network" }),
@@ -627,6 +641,7 @@ test.describe("Network Navigator smoke", () => {
 
     await page.goto("/");
     await addFiles(page, [fixture("toy.net")]);
+    await noInfomap(page);
     await load.click();
     await expect(heading).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
     await page.getByRole("button", { name: "Run Infomap", exact: true }).click();
@@ -853,6 +868,7 @@ test.describe("Network Navigator smoke", () => {
 
     await page.goto("/");
     await addFiles(page, [fixture("toy.net")]);
+    await noInfomap(page);
     await load.click();
     await expect(heading).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
     await expect(canvas).toBeVisible();
@@ -926,6 +942,7 @@ test.describe("Network Navigator smoke", () => {
     // A raw network holds no module hierarchy: d3gl's force layout.
     await page.goto("/");
     await addFiles(page, [fixture("toy.net")]);
+    await noInfomap(page);
     await load.click();
     await expect(heading).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
     await expect(group.getByRole("radio", { name: "auto" })).toBeChecked();
@@ -940,6 +957,7 @@ test.describe("Network Navigator smoke", () => {
     // A clustered state network: the force layout of its physical graph.
     await page.goto("/");
     await addFiles(page, [fixture("toy_states.net")]);
+    await noInfomap(page);
     await load.click();
     await expect(heading).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
     await page.getByRole("button", { name: "Run Infomap", exact: true }).click();
@@ -1065,6 +1083,7 @@ test.describe("Network Navigator smoke", () => {
 
     await page.goto("/");
     await addFiles(page, [fixture("toy.net")]);
+    await noInfomap(page);
     await page.getByRole("button", { name: "Load", exact: true }).click();
     await expect(heading).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
     await idle();
@@ -1130,6 +1149,7 @@ test.describe("Network Navigator smoke", () => {
 
     await page.goto("/");
     await addFiles(page, [fixture("toy.net")]);
+    await noInfomap(page);
     await page.getByRole("button", { name: "Load", exact: true }).click();
     await expect(heading).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
     // No modules yet: the force layout.

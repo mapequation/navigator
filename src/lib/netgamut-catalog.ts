@@ -18,6 +18,10 @@ export const NETGAMUT_CATALOG: string =
 export const NETGAMUT_EXPLORER =
   "https://mapequation.org/netgamut/explorer.html";
 
+/** The explorer opened on the dataset `key`. */
+export const explorerUrl = (key: string): string =>
+  `${NETGAMUT_EXPLORER}#dataset=${encodeURIComponent(key)}`;
+
 interface IndexDataset {
   key: string;
   source: string;

@@ -48,7 +48,7 @@ async function readCitation(): Promise<LoadedNetwork> {
   return net;
 }
 
-/** A state network, loaded as if dropped alone: raw, until Infomap runs. */
+/** A state network, loaded as if dropped alone: without modules, until Infomap has run on it. */
 async function readLesMiserables(): Promise<LoadedNetwork> {
   const name = "Les_Miserables.net";
   const text = await fetchOk(`${base}${name}`).then((r) => r.text());
@@ -65,9 +65,8 @@ export const BUNDLED_EXAMPLES: readonly BundledExample[] = [
     id: "citation",
     title: "Citation network",
     format: ".ftree",
-    about:
-      "An Infomap result: a hierarchy of modules, named by field and journal.",
-    hint: "Double-click a module to zoom into its submodules.",
+    about: "An Infomap result: a hierarchy of named modules.",
+    hint: "Double-click a module to zoom to it.",
     read: readCitation,
   },
   {
@@ -75,8 +74,9 @@ export const BUNDLED_EXAMPLES: readonly BundledExample[] = [
     id: "les-miserables",
     title: "Les Misérables",
     format: ".net",
-    about: "The novel's characters as a state network, without modules yet.",
-    hint: "Run Infomap in the Modules panel to find its modules.",
+    about:
+      "The novel's characters as a state network, without modules: Infomap finds them as it loads.",
+    hint: "Re-run Infomap with other options in the Modules panel.",
     read: readLesMiserables,
   },
 ];
@@ -122,7 +122,6 @@ export const CATALOG_EXAMPLES: readonly CatalogExample[] = [
     kind: "netgamut",
     key: "snap/cit-HepTh",
     title: "arXiv HEP-Th citations",
-    about:
-      "Citations among papers in the arXiv High Energy Physics Theory section.",
+    about: "A citation network of arXiv High Energy Physics papers.",
   },
 ];

@@ -10,11 +10,16 @@ export const Header = observer(function Header() {
   const { ui } = useStores();
   return (
     <div className="flex flex-col gap-3 p-4">
-      <a href="https://www.mapequation.org" className="flex items-center gap-3">
-        <img src={icon} alt="MapEquation" className="h-9 w-9" />
+      <div className="flex items-center gap-3">
+        <a href="https://www.mapequation.org" className="shrink-0">
+          <img src={icon} alt="MapEquation" className="h-9 w-9" />
+        </a>
         <div className="min-w-0">
           <h1 className="text-base font-semibold leading-tight text-neutral-900">
-            Network Navigator{" "}
+            {/* The app as it starts: no ?netgamut or other parameters. */}
+            <a href={import.meta.env.BASE_URL} className="hover:underline">
+              Network Navigator
+            </a>{" "}
             <span className="text-xs font-normal text-neutral-400">
               v{import.meta.env.VITE_APP_VERSION}
             </span>
@@ -23,7 +28,7 @@ export const Header = observer(function Header() {
             Powered by Infomap v{Infomap.__version__} and d3gl v{d3glVersion}
           </p>
         </div>
-      </a>
+      </div>
       <div className="flex gap-2">
         <Button size="sm" className="flex-1" onPress={ui.openLoad}>
           Load network <Kbd className="ml-1">L</Kbd>

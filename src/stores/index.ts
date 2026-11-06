@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { ClusterStore } from "./cluster-store";
 import { LibraryStore } from "./library-store";
 import { NetworkStore } from "./network-store";
 import { SettingsStore } from "./settings-store";
@@ -8,7 +9,8 @@ export class RootStore {
   network = new NetworkStore();
   settings = new SettingsStore();
   ui = new UiStore();
-  library = new LibraryStore(this.network, this.ui);
+  cluster = new ClusterStore(this.network, this.ui);
+  library = new LibraryStore(this.network, this.ui, this.cluster);
 }
 
 export const StoreContext = createContext<RootStore | null>(null);

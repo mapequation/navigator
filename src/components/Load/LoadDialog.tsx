@@ -12,6 +12,7 @@ import { useStores } from "../../stores";
 import type { LoadTab } from "../../stores/library-store";
 import { nextPaint } from "../../stores/ui-store";
 import { ConsoleButton, InfomapProgressBar } from "../InfomapConsole";
+import { isSearchShortcut } from "../Search";
 import { BrowseTab } from "./BrowseTab";
 import { ExamplesTab } from "./ExamplesTab";
 import { FilesTab } from "./FilesTab";
@@ -111,6 +112,18 @@ export const LoadDialog = observer(function LoadDialog() {
     });
   }, [ui.loadOpen]);
 
+  // The search shortcut (Cmd+K, Ctrl+K) goes to the catalog search while the dialog is open.
+  useEffect(() => {
+    if (!ui.loadOpen) return;
+    const onKey = (ev: KeyboardEvent): void => {
+      if (!isSearchShortcut(ev)) return;
+      ev.preventDefault();
+      library.focusSearch();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [ui.loadOpen, library]);
+
   // Files dropped anywhere on the dialog are staged under Your files.
   const onDrop = useCallback(
     async (accepted: File[]) => {
@@ -166,8 +179,9 @@ export const LoadDialog = observer(function LoadDialog() {
 
   const loading = busy || ui.viewPhase !== null || library.download !== null;
   // Dismissable with or without a network (e.g. to change Settings before the first load), but not while a
-  // load or its Infomap run is in flight; a download can be cancelled.
-  const canDismiss = !ui.infomapRunning && !loading;
+  // load (with the Infomap run of a partition it loads) is in flight; a download can be cancelled. An Infomap
+  // run that clusters the network shown goes on behind the dialog.
+  const canDismiss = !loading;
 
   const ctx: LoadContext = {
     files,

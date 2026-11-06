@@ -1,15 +1,13 @@
 import { Alert, Button, Input, Link, TextField } from "@heroui/react";
 import { observer } from "mobx-react-lite";
 import { type ReactNode, useMemo } from "react";
-import { buildInfomapArgs, infomapArgString } from "../../lib/infomap-args";
 import { computeModuleStats, formatNumber } from "../../lib/network-stats";
-import { runInfomap } from "../../lib/run-infomap";
 import { useStores } from "../../stores";
 import { ConsoleButton, InfomapProgressBar } from "../InfomapConsole";
 import { Row, Stats, Toggle } from "./controls";
 
 export const ModulesPanel = observer(function ModulesPanel() {
-  const { network: store, ui } = useStores();
+  const { network: store, ui, cluster } = useStores();
   const cur = store.current;
   const moduleStats = useMemo(
     () =>
@@ -23,34 +21,8 @@ export const ModulesPanel = observer(function ModulesPanel() {
   );
   if (!cur) return null;
 
-  const args = buildInfomapArgs({
-    directed: cur.directed,
-    twoLevel: ui.twoLevel,
-    noInfomap: false,
-    regularized: ui.regularized,
-  });
-  const command = `infomap ${infomapArgString(args, ui.infomapFlags)}`;
-
-  const cluster = async (): Promise<void> => {
-    if (!cur.networkText) return;
-    let error: string | null = null;
-    try {
-      ui.startInfomap(command);
-      const { tree, flow } = await runInfomap({
-        network: cur.networkText,
-        filename: cur.filename,
-        args,
-        flags: ui.infomapFlags,
-        onLog: ui.onInfomapLog,
-      });
-      store.applyClustering(tree, flow);
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-      ui.setInfomapError(error);
-    } finally {
-      ui.finishInfomap(error);
-    }
-  };
+  const command = cluster.command;
+  const run = (): void => void cluster.run();
   const progress = ui.infomapProgress;
 
   const rows: [string, ReactNode][] = [];
@@ -69,7 +41,9 @@ export const ModulesPanel = observer(function ModulesPanel() {
         <Stats rows={rows} />
       ) : (
         <p className="text-xs text-neutral-500">
-          Not clustered yet. Run Infomap to find modules.
+          {ui.infomapRunning
+            ? "Infomap is finding the modules…"
+            : "Not clustered yet. Run Infomap to find modules."}
         </p>
       )}
 
@@ -104,7 +78,7 @@ export const ModulesPanel = observer(function ModulesPanel() {
               placeholder="More flags, e.g. -N 5"
               className="font-mono text-xs"
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !ui.infomapRunning) void cluster();
+                if (e.key === "Enter" && !ui.infomapRunning) run();
               }}
             />
           </TextField>
@@ -126,7 +100,7 @@ export const ModulesPanel = observer(function ModulesPanel() {
             <Button
               size="sm"
               className="flex-1"
-              onPress={cluster}
+              onPress={run}
               isPending={ui.infomapRunning}
             >
               {ui.infomapRunning
@@ -135,6 +109,11 @@ export const ModulesPanel = observer(function ModulesPanel() {
                   ? "Re-run Infomap"
                   : "Run Infomap"}
             </Button>
+            {cluster.running && (
+              <Button size="sm" variant="secondary" onPress={cluster.stop}>
+                Stop
+              </Button>
+            )}
             <ConsoleButton />
           </div>
           {ui.infomapRunning && (

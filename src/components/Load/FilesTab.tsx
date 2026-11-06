@@ -55,7 +55,7 @@ export const FilesTab = observer(function FilesTab({
 }: {
   ctx: LoadContext;
 }) {
-  const { network: store, ui } = useStores();
+  const { network: store, ui, cluster } = useStores();
   const { files, setFiles, options, setOptions } = ctx;
 
   const currentLoad = () =>
@@ -82,6 +82,8 @@ export const FilesTab = observer(function FilesTab({
       ctx.close();
       return;
     }
+    // A load stops an Infomap run that clusters the network shown now.
+    cluster.stop();
     ctx.setBusy(true);
     ctx.setRanInfomap(false);
     // Parsing runs on the main thread: let the label paint before it starts.
@@ -114,6 +116,7 @@ export const FilesTab = observer(function FilesTab({
   };
 
   const loadOnline = async (): Promise<void> => {
+    cluster.stop();
     ctx.setBusy(true);
     try {
       const item = await loadInfomapOnline();
@@ -182,7 +185,6 @@ export const FilesTab = observer(function FilesTab({
                     ref={loadButton}
                     className="ml-auto min-w-28 data-[focused=true]:ring-2 data-[focused=true]:ring-(--accent) data-[focused=true]:ring-offset-2"
                     isPending={ctx.loading}
-                    isDisabled={ui.infomapRunning && !ctx.loading}
                     variant={clears ? "danger-soft" : "primary"}
                     onPress={load}
                   >
@@ -263,26 +265,29 @@ export const FilesTab = observer(function FilesTab({
                         undirected or doesn’t say.
                       </p>
                     </div>
+                    <div className="flex flex-col gap-0.5">
+                      <Toggle
+                        label={
+                          hasPartition
+                            ? "No Infomap (keep partition as is)"
+                            : "No Infomap (load without modules)"
+                        }
+                        isSelected={options.noInfomap}
+                        onChange={(noInfomap) => setOptions({ noInfomap })}
+                      />
+                      <p className="pl-11 text-xs text-neutral-600">
+                        {hasPartition
+                          ? "Otherwise Infomap runs to compute the flow and the module hierarchy from the partition."
+                          : "Otherwise Infomap finds the modules as the network loads; Run Infomap in the Modules panel does it later."}
+                      </p>
+                    </div>
                     {hasPartition && (
-                      <>
-                        <p className="text-xs text-neutral-600">
-                          With a partition file, Infomap runs to compute flow
-                          and the module hierarchy from it.
-                        </p>
-                        <div className="flex flex-wrap gap-4">
-                          <Toggle
-                            label="No Infomap (keep partition as is)"
-                            isSelected={options.noInfomap}
-                            onChange={(noInfomap) => setOptions({ noInfomap })}
-                          />
-                          <Toggle
-                            label="Two-level"
-                            isSelected={options.twoLevel}
-                            onChange={(twoLevel) => setOptions({ twoLevel })}
-                            isDisabled={options.noInfomap}
-                          />
-                        </div>
-                      </>
+                      <Toggle
+                        label="Two-level"
+                        isSelected={options.twoLevel}
+                        onChange={(twoLevel) => setOptions({ twoLevel })}
+                        isDisabled={options.noInfomap}
+                      />
                     )}
                   </div>
                 )}
@@ -296,7 +301,6 @@ export const FilesTab = observer(function FilesTab({
                     ref={loadButton}
                     className="ml-auto min-w-28 data-[focused=true]:ring-2 data-[focused=true]:ring-(--accent) data-[focused=true]:ring-offset-2"
                     isPending={ctx.loading}
-                    isDisabled={ui.infomapRunning && !ctx.loading}
                     variant={clears ? "danger-soft" : "primary"}
                     onPress={load}
                   >
@@ -341,6 +345,10 @@ export const FilesTab = observer(function FilesTab({
                 </div>
               ))}
             </dl>
+            <p className="mt-3 border-t border-neutral-100 pt-3 text-xs text-neutral-600">
+              A network without a partition or modules is clustered by Infomap
+              as soon as it loads, with the options in the Modules panel.
+            </p>
           </section>
           <section className="flex flex-col gap-2 rounded-xl border border-neutral-200 p-4">
             <h3 className="flex items-center gap-1.5 text-sm font-medium text-neutral-800">
@@ -357,7 +365,6 @@ export const FilesTab = observer(function FilesTab({
                   variant="secondary"
                   className="self-start"
                   isPending={ctx.loading}
-                  isDisabled={ui.infomapRunning}
                   onPress={loadOnline}
                 >
                   Open from Infomap Online

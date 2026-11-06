@@ -60,12 +60,14 @@ const App = observer(function App() {
 
   useEffect(() => {
     // The netgamut catalog's "Open in the Network Navigator": ?netgamut=<key> loads that dataset from the
-    // mirror as if dropped alone, raw until Infomap runs, on the same path as the load dialog's catalog.
-    const key = new URLSearchParams(window.location.search).get("netgamut");
+    // mirror as if dropped alone (Infomap clusters it as it loads), on the same path as the load dialog's catalog.
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("netgamut");
     if (!key) return;
     library.setTab("browse");
     library.select(key);
-    void library.loadNetgamut(key);
+    // &noInfomap opens it without modules, as the load dialog's No Infomap does.
+    void library.loadNetgamut(key, { noInfomap: params.has("noInfomap") });
     // StrictMode runs the effect twice in development: the first download stops.
     return () => library.cancelDownload();
   }, [library]);

@@ -73,12 +73,17 @@ export const SizeChart = observer(function SizeChart({
     setHover((h) => (h && shown.has(h.key) ? h : null));
   }, [shown]);
 
+  // Log scales have no place for a network without nodes or links: the chart leaves it out, the list keeps it.
+  const placed = useMemo(
+    () => entries.filter((e) => e.nodes > 0 && e.links > 0),
+    [entries],
+  );
   const bright = useMemo(
-    () => entries.filter((e) => shown.has(e.key)),
-    [entries, shown],
+    () => placed.filter((e) => shown.has(e.key)),
+    [placed, shown],
   );
   // Framed on the results, so a few of them are not lost among hundreds.
-  const framed = bright.length > 0 ? bright : entries;
+  const framed = bright.length > 0 ? bright : placed;
   const { x, y } = useMemo(
     () => ({
       x: scaleLog()
@@ -95,7 +100,7 @@ export const SizeChart = observer(function SizeChart({
   const inside = (e: CatalogEntry): boolean =>
     e.nodes >= x0 && e.nodes <= x1 && e.links >= y0 && e.links <= y1;
   // Draw the faint ones first, so the shown ones sit on top.
-  const faint = entries.filter((e) => !shown.has(e.key) && inside(e));
+  const faint = placed.filter((e) => !shown.has(e.key) && inside(e));
   const byKey = (key: string | null) =>
     key ? bright.find((e) => e.key === key) : undefined;
   const selected = byKey(selectedKey);
