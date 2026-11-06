@@ -1,3 +1,4 @@
+import { lumpStateGraph } from "@mapequation/d3gl/network";
 import { describe, expect, it } from "vitest";
 import { networkToLoaded } from "../lib/load-files";
 import { computeStats } from "../lib/network-stats";
@@ -139,6 +140,95 @@ describe("buildStyle colours and flow borders", () => {
     expect(style.flowBorder?.color).toBeUndefined(); // d3gl darkens the fill
     expect(style.flowBorder?.share).toBe(true); // exit flow over flow (d3gl#510)
     expect(fillOf(style, 2)).toBe("#00a000");
+  });
+
+  it("gives a lumped view's lumps the flow borders of their state nodes' summed exit flow", () => {
+    const raw = networkToLoaded(
+      `*Vertices 3
+1 "alpha"
+2 "beta"
+3 "gamma"
+*States
+1 1 "alpha-in"
+2 1 "alpha-out"
+3 2
+4 3
+*Links
+1 3 1
+3 2 1
+2 4 2
+4 1 1
+`,
+      "toy_states.net",
+    );
+    // alpha's and beta's state nodes in module 1, gamma's in module 2: the
+    // links alpha-out → gamma and gamma → alpha-in cross between them.
+    const modules = [
+      { id: 0, path: [1, 1] },
+      { id: 1, path: [1, 2] },
+      { id: 2, path: [1, 3] },
+      { id: 3, path: [2, 1] },
+    ];
+    const boundaryFlow = new Float32Array([0, 0.2, 0, 0.2]);
+    const physicalBoundaryFlow = new Float32Array([0.4, 0, 0.4]);
+    const { store, settings } = setup({
+      ...raw,
+      kind: "clustered",
+      modules,
+      boundaryFlow,
+      physicalBoundaryFlow,
+    });
+    const sg = store.builtState;
+    if (!sg) throw new Error("no state graph");
+    store.setLumped(lumpStateGraph(sg, modules));
+    const lumped = store.lumped;
+    if (!lumped) throw new Error("not lumped");
+    settings.set("stateView", "state");
+    const flow = buildStyle(store, settings, colors).flowBorder?.flow;
+    expect(flow).toBe(store.lumpedExitFlow);
+    const exit = store.lumpedExitFlow;
+    expect(exit).toHaveLength(3); // alpha, beta and gamma: one lump each
+    expect(exit?.[lumped.stateToLump[0]]).toBeCloseTo(0.2, 6); // alpha
+    expect(exit?.[lumped.stateToLump[2]]).toBe(0); // beta
+    expect(exit?.[lumped.stateToLump[3]]).toBeCloseTo(0.2, 6); // gamma
+    expect(store.lumpedMax?.boundary).toBeCloseTo(0.2, 6);
+    settings.set("stateView", "physical");
+    expect(buildStyle(store, settings, colors).flowBorder?.flow).toBe(
+      physicalBoundaryFlow,
+    );
+    // Drawn as given, the state view's state nodes have their own.
+    settings.set("stateView", "state");
+    store.setLumped(null);
+    expect(store.lumpedExitFlow).toBeNull();
+    expect(buildStyle(store, settings, colors).flowBorder?.flow).toBe(
+      boundaryFlow,
+    );
+    // Lumped without modules (each physical node's state nodes one lump, in the
+    // root module), the state nodes' flow is not flow across that module's
+    // boundary: no sum.
+    store.setLumped(lumpStateGraph(sg));
+    expect(store.lumpedExitFlow).toBeNull();
+  });
+
+  it("draws no node flow borders of flow along links only, but the modules' own", () => {
+    const boundaryFlow = new Float32Array([0, 0.1, 0.1, 0.05]);
+    const moduleFlow = new Map([["1", { enterFlow: 0.05, exitFlow: 0.07 }]]);
+    const { store, settings } = setup({
+      ...clustered(),
+      boundaryFlow,
+      moduleFlow,
+      partialNodeFlow: "module 1: its links carry 0.1 out of it",
+    });
+    const ring = buildStyle(store, settings, colors).flowBorder;
+    expect(ring?.flow).toBeUndefined();
+    expect(ring?.moduleFlow?.([1])).toBe(0.07);
+    expect(store.maxBoundaryFlow).toBe(0); // the ring scale as without them
+    // The selection still shows them, as along links only.
+    store.selectFromHit(1, false, null);
+    expect(store.selection).toMatchObject({
+      exitFlow: expect.closeTo(0.1, 6),
+      linksOnly: true,
+    });
   });
 
   it("gives only the modules of an .ftree flow borders, by the exit flow in its headers", () => {

@@ -47,6 +47,15 @@ export function networkToLoaded(
     // is its sum), and each view's flow borders.
     const nodeFlow = degreeFlow(g.stateCount, g.source, g.target, g.weight);
     const physicalCount = g.physicalCount ?? parsed.physicalNames.length;
+    // Read as undirected, the flow enters each node as it leaves it.
+    const exit = degreeExitFlow(g.stateCount, g.source, g.target, g.weight);
+    const physicalExit = degreeExitFlow(
+      physicalCount,
+      g.source,
+      g.target,
+      g.weight,
+      g.stateToPhysical,
+    );
     return {
       kind: "raw",
       filename,
@@ -63,18 +72,22 @@ export function networkToLoaded(
       physicalIds: parsed.physicalIds,
       stateIds: parsed.stateIds,
       networkText: text,
-      boundaryFlow: degreeExitFlow(g.stateCount, g.source, g.target, g.weight),
-      physicalBoundaryFlow: degreeExitFlow(
-        physicalCount,
-        g.source,
-        g.target,
-        g.weight,
-        g.stateToPhysical,
-      ),
+      boundaryFlow: exit,
+      boundaryEnterFlow: exit,
+      physicalBoundaryFlow: physicalExit,
+      physicalBoundaryEnterFlow: physicalExit,
     };
   }
   const { parsed, physicalIds } = parseWithIds(text, filename);
   const directed = directedOverride ?? parsed.directed;
+  // Until Infomap runs. Read as undirected, the flow enters each node as it
+  // leaves it.
+  const exit = degreeExitFlow(
+    parsed.nodeCount,
+    parsed.source,
+    parsed.target,
+    parsed.weight,
+  );
   return {
     kind: "raw",
     filename,
@@ -104,13 +117,8 @@ export function networkToLoaded(
     names: [...parsed.labels],
     physicalIds,
     networkText: text,
-    // Until Infomap runs.
-    boundaryFlow: degreeExitFlow(
-      parsed.nodeCount,
-      parsed.source,
-      parsed.target,
-      parsed.weight,
-    ),
+    boundaryFlow: exit,
+    boundaryEnterFlow: exit,
   };
 }
 

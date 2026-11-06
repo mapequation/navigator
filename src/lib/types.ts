@@ -96,8 +96,27 @@ export interface LoadedNetwork {
    * is its degree flow leaving each node (degreeExitFlow) until Infomap runs.
    */
   boundaryFlow?: Float32Array;
-  /** A raw state network's physical nodes' flow borders, for the physical view (degreeExitFlow). */
+  /**
+   * Per dense node: the link flow entering its bottom module at it (its enter
+   * flow), with boundaryFlow and from the same source. A raw network's degree
+   * flow, read as undirected, enters each node as it leaves: boundaryFlow.
+   */
+  boundaryEnterFlow?: Float32Array;
+  /**
+   * A state network's physical nodes' flow borders, for the physical view: the
+   * flow leaving each to other physical nodes (a raw one's degreeExitFlow).
+   */
   physicalBoundaryFlow?: Float32Array;
+  /** The flow entering each physical node from other physical nodes. */
+  physicalBoundaryEnterFlow?: Float32Array;
+  /**
+   * Set when those node flows are the flow along links only: the in-app
+   * Infomap run also moved flow between modules without a link (regularization,
+   * recorded teleportation), which Infomap reports for whole modules
+   * (moduleFlow) but not per node. Holds where the links fall short. Flow
+   * borders then draw the modules' only.
+   */
+  partialNodeFlow?: string;
   /** Every module's enter/exit flow, by pathKey (root ""): from the in-app Infomap run, or an .ftree's *Links headers. */
   moduleFlow?: Map<string, ModuleFlow>;
   /** Raw network file text — enables (re-)clustering with Infomap. */

@@ -116,32 +116,47 @@ const ABS_TOL = 1e-12;
 export type BoundaryFlowResult =
   | {
       ok: true;
+      /** The flow leaving each node's bottom module from it: its exit flow. */
       node: Float32Array;
+      /** The flow entering each node's bottom module at it: its enter flow. */
+      enter: Float32Array;
+      /** The largest of `node`. */
       max: number;
       /** With `groups`: the link flow leaving each group (see boundaryFlow). */
       group?: Float32Array;
+      /** With `groups`: the link flow entering each group. */
+      groupEnter?: Float32Array;
+      /**
+       * Set when the link flow misses Infomap's flow of a module (the first
+       * such module, and by how much): the run also moved flow between
+       * modules without a link, and these are the flow along links only.
+       */
+      partial?: string;
     }
   | { ok: false; reason: string };
 
 /**
  * Per node: the Infomap link flow leaving its bottom module from it (the
- * node's exit flow). For every link whose endpoints sit in different bottom
- * modules: an arc s→t with flow f adds f to s; an undirected edge, whose f is
- * the flow both ways, adds f/2 to each end. Summed over a bottom module's
- * leaves that is the flow leaving it, which the JSON tree reports as
- * exitFlow; the result is checked against it for every bottom module and
- * refused (ok: false) on any mismatch — as with recorded teleportation or
- * regularization, whose teleportation flow crosses module boundaries without
- * a link.
+ * node's exit flow), and entering it at it (its enter flow). For every link
+ * whose endpoints sit in different bottom modules: an arc s→t with flow f
+ * adds f to s's exit and t's enter flow; an undirected edge, whose f is the
+ * flow both ways, adds f/2 to each end's exit and enter flow. Summed over a
+ * bottom module's leaves those are the flow leaving and entering it, which the
+ * JSON tree reports as exitFlow and enterFlow; the result is checked against
+ * both for every bottom module. On any mismatch — as with recorded
+ * teleportation or regularization, whose flow crosses module boundaries
+ * without a link — it is the flow along links only, and `partial` says so.
+ * Infomap reports that other flow for whole modules, not per node.
  *
  * `denseOf` maps an Infomap node id to the node's dense index; `keyOf` gives
  * a tree node's Infomap id as the flow links name it (a state node's state
  * id), as withClustering matches them.
  *
  * With `groups` (a state network's physical nodes: `of` maps a dense node to
- * its group), also the link flow leaving each group, by the same rule over
- * the links whose ends are in different groups, whatever their modules. A
- * group may span modules, so this one has no exit flow to check against.
+ * its group), also the link flow leaving and entering each group, by the same
+ * rule over the links whose ends are in different groups, whatever their
+ * modules. A group may span modules, so these have no module flow to check
+ * against.
  */
 export function boundaryFlow(
   tree: InfomapTree,
@@ -181,7 +196,9 @@ export function boundaryFlow(
 
   const links = parseFlowLinks(flowText);
   const ring = new Float64Array(nodeCount);
+  const enter = new Float64Array(nodeCount);
   const group = groups ? new Float64Array(groups.count) : null;
+  const groupEnter = groups ? new Float64Array(groups.count) : null;
   for (let e = 0; e < links.count; e++) {
     const s = dense(links.source[e]);
     const t = dense(links.target[e]);
@@ -192,27 +209,45 @@ export function boundaryFlow(
       };
     }
     const f = links.flow[e];
-    if (group && groups) {
+    if (group && groupEnter && groups) {
       const a = groups.of[s];
       const b = groups.of[t];
       if (a !== b) {
         if (links.undirected) {
           group[a] += f / 2;
           group[b] += f / 2;
-        } else group[a] += f;
+          groupEnter[a] += f / 2;
+          groupEnter[b] += f / 2;
+        } else {
+          group[a] += f;
+          groupEnter[b] += f;
+        }
       }
     }
     if (bottomOf[s] === bottomOf[t]) continue;
     if (links.undirected) {
       ring[s] += f / 2;
       ring[t] += f / 2;
-    } else ring[s] += f;
+      enter[s] += f / 2;
+      enter[t] += f / 2;
+    } else {
+      ring[s] += f;
+      enter[t] += f;
+    }
   }
 
-  const sum = new Float64Array(bottomKeys.length);
-  for (let i = 0; i < nodeCount; i++)
-    if (bottomOf[i] >= 0) sum[bottomOf[i]] += ring[i];
+  const sumOut = new Float64Array(bottomKeys.length);
+  const sumIn = new Float64Array(bottomKeys.length);
+  for (let i = 0; i < nodeCount; i++) {
+    if (bottomOf[i] < 0) continue;
+    sumOut[bottomOf[i]] += ring[i];
+    sumIn[bottomOf[i]] += enter[i];
+  }
   const modules = moduleFlowOf(tree);
+  let partial: string | undefined;
+  const off = (got: number, want: number): boolean =>
+    Math.abs(got - want) >
+    REL_TOL * Math.max(Math.abs(got), Math.abs(want)) + ABS_TOL;
   for (let b = 0; b < bottomKeys.length; b++) {
     const m = modules.get(bottomKeys[b]);
     if (!m)
@@ -220,17 +255,11 @@ export function boundaryFlow(
         ok: false,
         reason: `module ${bottomKeys[b]} is missing from the tree`,
       };
-    const want = m.exitFlow;
-    const got = sum[b];
-    if (
-      Math.abs(got - want) >
-      REL_TOL * Math.max(Math.abs(got), Math.abs(want)) + ABS_TOL
-    ) {
-      return {
-        ok: false,
-        reason: `module ${bottomKeys[b]}: its links carry ${got} out of it, Infomap reports exit flow ${want}`,
-      };
-    }
+    if (partial) continue;
+    if (off(sumOut[b], m.exitFlow))
+      partial = `module ${bottomKeys[b]}: its links carry ${sumOut[b]} out of it, Infomap reports exit flow ${m.exitFlow}`;
+    else if (off(sumIn[b], m.enterFlow))
+      partial = `module ${bottomKeys[b]}: its links carry ${sumIn[b]} into it, Infomap reports enter flow ${m.enterFlow}`;
   }
 
   const node = Float32Array.from(ring);
@@ -239,7 +268,14 @@ export function boundaryFlow(
   return {
     ok: true,
     node,
+    enter: Float32Array.from(enter),
     max,
-    ...(group ? { group: Float32Array.from(group) } : {}),
+    ...(partial ? { partial } : {}),
+    ...(group && groupEnter
+      ? {
+          group: Float32Array.from(group),
+          groupEnter: Float32Array.from(groupEnter),
+        }
+      : {}),
   };
 }

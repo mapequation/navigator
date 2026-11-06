@@ -14,7 +14,22 @@ import { pathKey } from "../lib/path-key";
 import { statesOf } from "../lib/state-ids";
 import type { InfomapTree, LoadedNetwork } from "../lib/types";
 
+/**
+ * What a selection is: a plain network's node, a state node, a physical node
+ * (the physical view's, or a both-view container), a lump (one physical node's
+ * state nodes in one module, drawn as one: d3gl#529), a whole module, or an
+ * aggregate of part of a module or of no module.
+ */
+export type SelectionKind =
+  | "node"
+  | "state node"
+  | "physical node"
+  | "lump"
+  | "module"
+  | "aggregate";
+
 export interface SelectionInfo {
+  kind: SelectionKind;
   /** Node ids (a state network's state ids): the node, or an aggregate's members. */
   ids: number[];
   aggregate: boolean;
@@ -22,7 +37,13 @@ export interface SelectionInfo {
    *  module, d3gl#529): named and weighed as itself, `ids` its state nodes. */
   physical: boolean;
   name: string;
+  /**
+   * Its module: a node's enclosing module, the module an aggregate's, physical
+   * node's or lump's members share; null without modules.
+   */
   path: number[] | null;
+  /** A single node's Infomap tree path: its module, then its rank in it. */
+  treePath: number[] | null;
   /**
    * A physical node's modules one level below `path` that its state nodes
    * split over, by share of its flow, largest first (see moduleShares); null
@@ -31,14 +52,55 @@ export interface SelectionInfo {
   modules: ModuleShare[] | null;
   flow: number | null;
   /**
+   * The flow entering it: a node's enter flow (LoadedNetwork.boundaryEnterFlow,
+   * a physical node's physicalBoundaryEnterFlow, a lump's lumpedEnterFlow), a
+   * whole module's enter flow; null when unknown.
+   */
+  enterFlow: number | null;
+  /**
    * The flow leaving it: a node's flow border (LoadedNetwork.boundaryFlow, a
-   * physical node's physicalBoundaryFlow), a whole module's exit flow; null
-   * when unknown.
+   * physical node's physicalBoundaryFlow, a lump's lumpedExitFlow), a whole
+   * module's exit flow; null when unknown.
    */
   exitFlow: number | null;
-  /** A node's or physical node's link count; null for an aggregate. */
+  /**
+   * Its enter and exit flow are the flow along links only, short of all of
+   * it (LoadedNetwork.partialNodeFlow).
+   */
+  linksOnly: boolean;
+  /**
+   * A node's, physical node's or lump's link count in an undirected network
+   * (a self-link once, as NetworkGraph.degree); null for an aggregate, and in
+   * a directed network, which counts its links in and out instead.
+   */
   degree: number | null;
+  inDegree: number | null;
+  outDegree: number | null;
+  /** A single state node's state id (a lump of one state node's too). */
+  stateId: number | null;
+  /** The file's id of a node, physical node, lump's or state node's physical node. */
   physicalId: number | null;
+}
+
+/**
+ * Node `i`'s link count in `g`, or, `g` directed, its links in and out (a
+ * self-link once each way). O(links) when directed: per selection, not per
+ * frame.
+ */
+function degreesOf(
+  g: NetworkGraph | null | undefined,
+  i: number,
+): Pick<SelectionInfo, "degree" | "inDegree" | "outDegree"> {
+  if (!g) return { degree: null, inDegree: null, outDegree: null };
+  if (!g.directed)
+    return { degree: g.degree[i] ?? null, inDegree: null, outDegree: null };
+  let inDegree = 0;
+  let outDegree = 0;
+  for (let e = 0; e < g.edgeCount; e++) {
+    if (g.source[e] === i) outDegree++;
+    if (g.target[e] === i) inDegree++;
+  }
+  return { degree: null, inDegree, outDegree };
 }
 
 export interface ModuleShare {
@@ -150,6 +212,30 @@ function maximaOf(g: NetworkGraph): {
   return { flow, degree, weight };
 }
 
+/**
+ * Each lump's sum of its state nodes' `values` (by state id), or null without
+ * `values`. A lump is one physical node's state nodes in one module, so a link
+ * between two of them crosses no module boundary: summed, their flow entering
+ * and leaving their module (LoadedNetwork.boundaryEnterFlow, boundaryFlow) is
+ * the lump's own enter and exit flow. O(state nodes).
+ *
+ * Also null for a lumping without modules, which puts each physical node's
+ * state nodes in the root module as one lump (lumpStateGraph; the app never
+ * lumps a network without modules). Their flow is then not flow across the
+ * root module's boundary: before Infomap runs it is the flow leaving each
+ * state node, so the sum would count the links between them.
+ */
+function sumByLump(
+  values: Float32Array | undefined,
+  lumped: LumpedStateNetwork,
+): Float32Array | null {
+  if (!values || !lumped.modules) return null;
+  const sum = new Float64Array(lumped.graph.state.nodeCount);
+  const { stateToLump } = lumped;
+  for (let s = 0; s < stateToLump.length; s++) sum[stateToLump[s]] += values[s];
+  return Float32Array.from(sum);
+}
+
 /** Module pathKey → highest-flow leaf, over every module prefix. O(nodes · depth). */
 function topLeaves(net: LoadedNetwork): Map<string, number> {
   const out = new Map<string, number>();
@@ -182,7 +268,10 @@ export class NetworkStore {
    * so module super-edges and leaf links share one scale.
    */
   maxLinkFlow = 0;
-  /** Largest node boundary flow (LoadedNetwork.boundaryFlow): the flow-border rings' domain. */
+  /**
+   * Largest node boundary flow (LoadedNetwork.boundaryFlow): the flow-border
+   * rings' domain; 0 without node flow borders (LoadedNetwork.partialNodeFlow).
+   */
   maxBoundaryFlow = 0;
   /**
    * A state network's physical graph's largest node flow (its state nodes'
@@ -202,7 +291,20 @@ export class NetworkStore {
    * domains. Null while they draw the state nodes as given.
    */
   lumped: LumpedStateNetwork | null = null;
-  lumpedMax: { flow: number; degree: number; weight: number } | null = null;
+  lumpedMax: {
+    flow: number;
+    degree: number;
+    weight: number;
+    /** Largest lump flow border (lumpedExitFlow). */
+    boundary: number;
+  } | null = null;
+  /**
+   * Each lump's enter and exit flow, by lump id (see sumByLump); the exit
+   * flow is the lumped views' flow borders. Null while not lumped, or without
+   * node enter or exit flow.
+   */
+  lumpedEnterFlow: Float32Array | null = null;
+  lumpedExitFlow: Float32Array | null = null;
   /**
    * Bumped on every load (setNetwork): the view takes the network as new data,
    * lays it out from scratch and frames it. A re-clustering of a plain network
@@ -235,6 +337,8 @@ export class NetworkStore {
         built: false,
         builtState: false,
         lumped: observable.ref,
+        lumpedEnterFlow: observable.ref,
+        lumpedExitFlow: observable.ref,
         engine: false,
         zoomTo: false,
         moduleLeafCache: false,
@@ -271,10 +375,10 @@ export class NetworkStore {
     this.physicalMax = this.builtState
       ? {
           ...maximaOf(this.builtState.physical),
-          boundary: maxOf(net.physicalBoundaryFlow),
+          boundary: net.partialNodeFlow ? 0 : maxOf(net.physicalBoundaryFlow),
         }
       : null;
-    this.maxBoundaryFlow = maxOf(net.boundaryFlow);
+    this.maxBoundaryFlow = net.partialNodeFlow ? 0 : maxOf(net.boundaryFlow);
     this.moduleTopLeaf = topLeaves(net);
   }
 
@@ -314,14 +418,27 @@ export class NetworkStore {
   /** The lumped network the engine draws now (net.lumped), or null. */
   setLumped(lumped: LumpedStateNetwork | null): void {
     if (lumped === this.lumped) return;
+    const cur = this.current;
     this.lumped = lumped;
-    this.lumpedMax = lumped ? maximaOf(lumped.graph.state) : null;
+    this.lumpedEnterFlow = lumped
+      ? sumByLump(cur?.boundaryEnterFlow, lumped)
+      : null;
+    this.lumpedExitFlow = lumped ? sumByLump(cur?.boundaryFlow, lumped) : null;
+    this.lumpedMax = lumped
+      ? {
+          ...maximaOf(lumped.graph.state),
+          boundary: cur?.partialNodeFlow
+            ? 0
+            : maxOf(this.lumpedExitFlow ?? undefined),
+        }
+      : null;
   }
 
   /**
    * Select lump `l` of the lumped network: its physical node in its module,
    * named by the physical node, weighed by the lump's own flow and degree,
-   * its state nodes the members.
+   * its state nodes the members, its enter and exit flow theirs summed (see
+   * sumByLump).
    */
   selectLump(l: number): void {
     this.searchShown = false;
@@ -337,12 +454,18 @@ export class NetworkStore {
       ids,
       aggregate: true,
       physical: true,
+      kind: "lump",
       name: cur.physicalNames?.[p] ?? String(p),
       path,
+      treePath: null,
       modules: null,
       flow: lumped.graph.state.flow?.[l] ?? null,
-      exitFlow: null, // a lump's own exit flow is not known
-      degree: lumped.graph.state.csr.degree[l] ?? null,
+      enterFlow: this.lumpedEnterFlow?.[l] ?? null,
+      exitFlow: this.lumpedExitFlow?.[l] ?? null,
+      linksOnly: !!cur.partialNodeFlow,
+      ...degreesOf(lumped.graph.state, l),
+      // A lump of one state node is that state node.
+      stateId: ids.length === 1 ? (cur.stateIds?.[ids[0]] ?? null) : null,
       physicalId: cur.physicalIds?.[ids[0] ?? -1] ?? null,
     };
     if (path) this.breadcrumb = path;
@@ -413,12 +536,17 @@ export class NetworkStore {
         ids,
         aggregate: true,
         physical: true,
+        kind: "physical node",
         name: cur.physicalNames?.[physical] ?? String(physical),
         path,
+        treePath: null,
         modules: shares.length > 1 ? shares : null,
         flow: sg.physical.flow?.[physical] ?? null,
+        enterFlow: cur.physicalBoundaryEnterFlow?.[physical] ?? null,
         exitFlow: cur.physicalBoundaryFlow?.[physical] ?? null,
-        degree: sg.physical.csr.degree[physical] ?? null,
+        linksOnly: !!cur.partialNodeFlow,
+        ...degreesOf(sg.physical, physical),
+        stateId: null,
         physicalId: cur.physicalIds?.[ids[0] ?? -1] ?? null,
       };
       if (path) this.breadcrumb = path;
@@ -426,20 +554,26 @@ export class NetworkStore {
     }
     if (!aggregate) {
       const record = cur.modules?.[id];
-      const path = record ? Array.from(record.path) : null;
+      const treePath = record ? Array.from(record.path) : null;
+      const path = treePath ? treePath.slice(0, -1) : null;
       this.selection = {
         ids: [id],
         aggregate: false,
         physical: false,
+        kind: cur.isStates ? "state node" : "node",
         name: cur.names[id] ?? String(id),
         path,
+        treePath,
         modules: null,
         flow: nodeFlow ? nodeFlow[id] : null,
+        enterFlow: cur.boundaryEnterFlow?.[id] ?? null,
         exitFlow: cur.boundaryFlow?.[id] ?? null,
-        degree: this.built?.csr.degree[id] ?? null,
+        linksOnly: !!cur.partialNodeFlow,
+        ...degreesOf(this.built, id),
+        stateId: cur.isStates ? (cur.stateIds?.[id] ?? null) : null,
         physicalId: cur.physicalIds?.[id] ?? null,
       };
-      if (path) this.breadcrumb = path.slice(0, -1);
+      if (path) this.breadcrumb = path;
       return;
     }
     const ids = members ?? [];
@@ -447,21 +581,28 @@ export class NetworkStore {
       ? commonPathPrefix(ids.map((i) => cur.modules?.[i]?.path ?? []))
       : null;
     const flow = nodeFlow ? ids.reduce((sum, i) => sum + nodeFlow[i], 0) : null;
-    // A whole module's exit flow; an aggregate of part of one has none known.
+    // A whole module's enter and exit flow; an aggregate of part of one has
+    // none known.
     const whole =
       path?.length && this.leavesOfModule(path).length === ids.length;
+    const moduleFlow = whole ? cur.moduleFlow?.get(pathKey(path)) : undefined;
     this.selection = {
       ids,
       aggregate: true,
       physical: false,
+      kind: whole ? "module" : "aggregate",
       name: this.moduleName(path, ids),
       path,
+      treePath: null,
       modules: null,
       flow,
-      exitFlow: whole
-        ? (cur.moduleFlow?.get(pathKey(path))?.exitFlow ?? null)
-        : null,
+      enterFlow: moduleFlow?.enterFlow ?? null,
+      exitFlow: moduleFlow?.exitFlow ?? null,
+      linksOnly: false, // Infomap's own
       degree: null,
+      inDegree: null,
+      outDegree: null,
+      stateId: null,
       physicalId: null,
     };
     if (path) this.breadcrumb = path;

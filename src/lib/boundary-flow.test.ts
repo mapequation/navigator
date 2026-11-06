@@ -71,7 +71,7 @@ const dense = new Map([
 ]);
 
 describe("boundaryFlow", () => {
-  it("adds each cross-module arc's flow to its source: the flow leaving the module", () => {
+  it("adds each cross-module arc's flow to its source's exit and its target's enter flow", () => {
     const tree = toyTree([
       toyModule([0], 0, 0),
       toyModule([1], 0.2, 0.2),
@@ -80,12 +80,18 @@ describe("boundaryFlow", () => {
     const r = boundaryFlow(tree, toyFlow, 3, (id) => dense.get(id));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    // 10→20 stays in module 1; 20→30 leaves module 1, 30→10 leaves module 2.
+    // 10→20 stays in module 1; 20→30 leaves module 1 and enters module 2,
+    // 30→10 leaves module 2 and enters module 1.
     expect(Array.from(r.node)).toEqual([0, Math.fround(0.2), Math.fround(0.2)]);
+    expect(Array.from(r.enter)).toEqual([
+      Math.fround(0.2),
+      0,
+      Math.fround(0.2),
+    ]);
     expect(r.max).toBe(Math.fround(0.2));
   });
 
-  it("keys a state network's nodes by state id, and sums the flow leaving each physical node", () => {
+  it("keys a state network's nodes by state id, and sums the flow leaving and entering each physical node", () => {
     const tree = toyTree([
       toyModule([0], 0, 0),
       toyModule([1], 0.2, 0.2),
@@ -111,8 +117,18 @@ describe("boundaryFlow", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(Array.from(r.node)).toEqual([0, Math.fround(0.2), Math.fround(0.2)]);
-    // 10→20 stays in physical node 0; 20→30 leaves it, 30→10 leaves 1.
+    expect(Array.from(r.enter)).toEqual([
+      Math.fround(0.2),
+      0,
+      Math.fround(0.2),
+    ]);
+    // 10→20 stays in physical node 0; 20→30 leaves it for 1, 30→10 leaves 1
+    // for 0.
     expect(Array.from(r.group ?? [])).toEqual([
+      Math.fround(0.2),
+      Math.fround(0.2),
+    ]);
+    expect(Array.from(r.groupEnter ?? [])).toEqual([
       Math.fround(0.2),
       Math.fround(0.2),
     ]);
@@ -131,9 +147,11 @@ describe("boundaryFlow", () => {
     expect(Array.from(r.node)).toEqual(
       [0.1, 0.1, 0.2].map((v) => Math.fround(v)),
     );
+    // Half of each edge's flow runs each way: into each end as out of it.
+    expect(Array.from(r.enter)).toEqual(Array.from(r.node));
   });
 
-  it("refuses rings that don't add up to a module's exit flow", () => {
+  it("marks exit flows that don't add up to a module's as along links only", () => {
     // As with recorded teleportation: flow crosses without a link.
     const tree = toyTree([
       toyModule([0], 0, 0),
@@ -142,8 +160,28 @@ describe("boundaryFlow", () => {
     ]);
     const r = boundaryFlow(tree, toyFlow, 3, (id) => dense.get(id));
     expect(r).toMatchObject({
-      ok: false,
-      reason: expect.stringMatching(/^module 1:/),
+      ok: true,
+      partial: expect.stringMatching(/^module 1: .* exit flow 0\.25$/),
+    });
+    // The link flow, as it is.
+    if (r.ok)
+      expect(Array.from(r.node)).toEqual([
+        0,
+        Math.fround(0.2),
+        Math.fround(0.2),
+      ]);
+  });
+
+  it("marks enter flows that don't add up to a module's as along links only", () => {
+    const tree = toyTree([
+      toyModule([0], 0, 0),
+      toyModule([1], 0.25, 0.2),
+      toyModule([2], 0.2, 0.2),
+    ]);
+    const r = boundaryFlow(tree, toyFlow, 3, (id) => dense.get(id));
+    expect(r).toMatchObject({
+      ok: true,
+      partial: expect.stringMatching(/^module 1: .* enter flow 0\.25$/),
     });
   });
 
@@ -166,8 +204,9 @@ describe("boundaryFlow", () => {
 
 /**
  * Through the real Infomap (its node runner), as the app runs it: every
- * bottom module's leaves' rings must add up to the module's exit
- * flow in the JSON tree, within the 6-digit rounding of Infomap's output.
+ * bottom module's leaves' exit flows (their rings) and enter flows must add up
+ * to the module's exit and enter flow in the JSON tree, within the 6-digit
+ * rounding of Infomap's output.
  */
 describe("flow-border rings against Infomap's module flow", () => {
   const cluster = async (
@@ -187,7 +226,9 @@ describe("flow-border rings against Infomap's module flow", () => {
       args: `${infomapArgString(args, opts.flags)} --silent`,
     });
     const tree = (result.json_states ?? result.json) as unknown as InfomapTree;
-    return { clustered: withClustering(net, tree, result.flow), tree, result };
+    // As runInfomap: a state network's flow output is flow_as_physical.
+    const flow = result.flow || result.flow_as_physical;
+    return { clustered: withClustering(net, tree, flow), tree, result };
   };
 
   const expectRingsMatch = ({
@@ -195,24 +236,35 @@ describe("flow-border rings against Infomap's module flow", () => {
     tree,
   }: Awaited<ReturnType<typeof cluster>>): number => {
     const ring = clustered.boundaryFlow;
+    const enter = clustered.boundaryEnterFlow;
     const modules = clustered.modules;
     expect(ring).toBeDefined();
-    if (!ring || !modules) return 0;
-    const sum = new Map<string, number>();
+    expect(enter).toBeDefined();
+    expect(clustered.partialNodeFlow).toBeUndefined();
+    if (!ring || !enter || !modules) return 0;
+    const sum = new Map<string, { enter: number; exit: number }>();
     for (const m of modules) {
       const key = pathKey(Array.from(m.path).slice(0, -1));
-      sum.set(key, (sum.get(key) ?? 0) + ring[m.id]);
+      const s = sum.get(key) ?? { enter: 0, exit: 0 };
+      s.enter += enter[m.id];
+      s.exit += ring[m.id];
+      sum.set(key, s);
     }
     const flows = moduleFlowOf(tree);
+    const close = (got: number, want: number) =>
+      Math.abs(got - want) <= 2e-5 * Math.max(got, want) + 1e-12;
     for (const [key, got] of sum) {
       const m = flows.get(key);
       expect(m, `module ${key}`).toBeDefined();
       if (!m) continue;
-      const want = m.exitFlow;
       expect(
-        Math.abs(got - want),
-        `module ${key}: rings ${got}, exit ${want}`,
-      ).toBeLessThanOrEqual(2e-5 * Math.max(got, want) + 1e-12);
+        close(got.exit, m.exitFlow),
+        `module ${key}: rings ${got.exit}, exit ${m.exitFlow}`,
+      ).toBe(true);
+      expect(
+        close(got.enter, m.enterFlow),
+        `module ${key}: enter ${got.enter}, Infomap ${m.enterFlow}`,
+      ).toBe(true);
     }
     return sum.size;
   };
@@ -248,11 +300,37 @@ describe("flow-border rings against Infomap's module flow", () => {
     ).toBe(2);
   });
 
-  it("draws no rings on a states network", async () => {
-    const { clustered, result } = await cluster("e2e/fixtures/toy_states.net", {
-      directed: true,
+  it("keeps a regularized run's node flows, marked as along links only", async () => {
+    // toy.net is one module once regularized; the Les Misérables states
+    // network has several.
+    const run = await cluster("public/Les_Miserables.net", {
+      directed: false,
+      flags: "--regularized",
     });
-    expect(result.flow).toBeUndefined();
-    expect(clustered.boundaryFlow).toBeUndefined();
+    // The prior's flow between modules is on no link.
+    expect(run.clustered.partialNodeFlow).toMatch(/^module /);
+    const n = run.clustered.graph.nodeCount; // its state nodes
+    expect(run.clustered.boundaryFlow).toHaveLength(n);
+    expect(run.clustered.boundaryEnterFlow).toHaveLength(n);
+  });
+
+  it.each([
+    ["directed", true],
+    ["undirected", false],
+  ])("matches on a %s states network, from flow_as_physical", async (_, directed) => {
+    const run = await cluster("e2e/fixtures/two_triangles_states.net", {
+      directed,
+    });
+    // A states network writes no `flow`, only flow_as_physical.
+    expect(run.result.flow).toBeFalsy();
+    expect(expectRingsMatch(run)).toBe(2);
+    // Each link between physical nodes leaves one and enters another.
+    const { physicalBoundaryFlow: out, physicalBoundaryEnterFlow: into } =
+      run.clustered;
+    expect(out).toHaveLength(5);
+    expect(into).toHaveLength(5);
+    const total = (a?: Float32Array) =>
+      Array.from(a ?? []).reduce((s, v) => s + v, 0);
+    expect(total(into)).toBeCloseTo(total(out), 5);
   });
 });

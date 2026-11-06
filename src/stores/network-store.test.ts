@@ -1,7 +1,13 @@
+import { readFileSync } from "node:fs";
+import { lumpStateGraph } from "@mapequation/d3gl/network";
+import run from "@mapequation/infomap/node";
 import { describe, expect, it } from "vitest";
+import { withClustering } from "../lib/apply-ftree";
+import { buildInfomapArgs, infomapArgString } from "../lib/infomap-args";
 import { networkToLoaded } from "../lib/load-files";
 import { computeStats } from "../lib/network-stats";
-import type { LoadedNetwork } from "../lib/types";
+import { pathKey } from "../lib/path-key";
+import type { InfomapTree, LoadedNetwork } from "../lib/types";
 import { moduleShares, NetworkStore } from "./network-store";
 
 const toy = (): LoadedNetwork => ({
@@ -52,14 +58,23 @@ describe("NetworkStore", () => {
     store.setNetwork(toy());
     store.selectFromHit(0, false, null);
     expect(store.selection).toMatchObject({
+      kind: "node",
       ids: [0],
       aggregate: false,
       name: "alpha",
+      // Its module, and its tree path: its module, then its rank in it.
+      path: [1],
+      treePath: [1, 1],
+      degree: 1, // undirected: to beta
+      inDegree: null,
+      outDegree: null,
+      stateId: null,
       physicalId: 1,
     });
     expect(store.breadcrumb).toEqual([1]);
 
     store.selectFromHit(99, true, [2, 3]);
+    expect(store.selection?.kind).toBe("module"); // all of module 2
     expect(store.selection?.ids).toEqual([2, 3]);
     expect(store.selection?.path).toEqual([2]);
     expect(store.selection?.flow).toBeCloseTo(0.3, 5);
@@ -239,22 +254,34 @@ describe("NetworkStore", () => {
 
     store.selectFromHit(0, false, [0], 0); // the physical view's alpha
     expect(store.selection).toMatchObject({
+      kind: "physical node",
       ids: [0, 1],
       aggregate: true,
       physical: true,
       name: "alpha",
       flow: expect.closeTo(0.5, 6),
+      // Degree flow, read as undirected, enters as it leaves.
+      enterFlow: expect.closeTo(0.5, 6),
       exitFlow: expect.closeTo(0.5, 6),
-      degree: 4, // one link each way with beta and with gamma
+      // Directed: one link each way with beta and with gamma.
+      degree: null,
+      inDegree: 2,
+      outDegree: 2,
+      stateId: null,
       physicalId: 1,
     });
     store.selectFromHit(0, false, null); // the state view's alpha-in
     expect(store.selection).toMatchObject({
+      kind: "state node",
       name: "alpha-in",
       physical: false,
       flow: expect.closeTo(0.2, 6),
+      enterFlow: expect.closeTo(0.2, 6),
       exitFlow: expect.closeTo(0.2, 6),
-      degree: 2, // from gamma, to beta
+      inDegree: 1, // from gamma
+      outDegree: 1, // to beta
+      stateId: 1,
+      physicalId: 1,
     });
 
     // Clustered: both-view containers (id stateCount + p), weighed by flow.
@@ -284,6 +311,79 @@ describe("NetworkStore", () => {
       name: "beta",
       path: [1],
       modules: null,
+    });
+  });
+
+  it("weighs a lump and a whole module by their enter and exit flow", async () => {
+    const file = "e2e/fixtures/two_triangles_states.net";
+    const text = readFileSync(file, "utf8");
+    const args = buildInfomapArgs({
+      directed: true,
+      twoLevel: false,
+      noInfomap: false,
+    });
+    const result = await run(text, {
+      filename: "two_triangles_states.net",
+      args: `${infomapArgString(args)} --silent`,
+    });
+    const tree = result.json_states as unknown as InfomapTree;
+    const store = new NetworkStore();
+    store.setNetwork(
+      withClustering(
+        networkToLoaded(text, "two_triangles_states.net"),
+        tree,
+        result.flow_as_physical,
+      ),
+    );
+    const cur = store.current;
+    const sg = store.builtState;
+    if (!cur?.modules || !cur.moduleFlow || !sg)
+      throw new Error("not clustered");
+    const lumped = lumpStateGraph(sg, cur.modules);
+    store.setLumped(lumped);
+    // A module's lumps' enter and exit flows add up to its own, Infomap's.
+    const sums = new Map<string, { enter: number; exit: number }>();
+    let shared = 0;
+    for (let l = 0; l < lumped.graph.state.nodeCount; l++) {
+      store.selectLump(l);
+      const sel = store.selection;
+      if (!sel?.path) throw new Error(`lump ${l} has no module`);
+      expect(sel).toMatchObject({ kind: "lump", degree: null, treePath: null });
+      // Directed: its links in and out; a state id only for one state node.
+      expect((sel.inDegree ?? 0) + (sel.outDegree ?? 0)).toBeGreaterThan(0);
+      expect(sel.stateId !== null).toBe(sel.ids.length === 1);
+      if (sel.ids.length > 1) shared++;
+      const key = pathKey(sel.path);
+      const sum = sums.get(key) ?? { enter: 0, exit: 0 };
+      sum.enter += sel.enterFlow ?? Number.NaN;
+      sum.exit += sel.exitFlow ?? Number.NaN;
+      sums.set(key, sum);
+    }
+    expect(shared).toBeGreaterThan(0); // physical node 3 in each triangle
+    expect(sums.size).toBe(2);
+    for (const [key, sum] of sums) {
+      const want = cur.moduleFlow.get(key);
+      expect(want?.exitFlow).toBeGreaterThan(0);
+      expect(sum.enter).toBeCloseTo(want?.enterFlow ?? Number.NaN, 5);
+      expect(sum.exit).toBeCloseTo(want?.exitFlow ?? Number.NaN, 5);
+    }
+    // A whole module, drawn as one: Infomap's enter and exit flow.
+    const [key] = sums.keys();
+    const path = key.split(":").map(Number);
+    const leaves = [...store.leavesOfModule(path)];
+    store.selectFromHit(0, true, leaves);
+    expect(store.selection).toMatchObject({
+      kind: "module",
+      path,
+      enterFlow: cur.moduleFlow.get(key)?.enterFlow,
+      exitFlow: cur.moduleFlow.get(key)?.exitFlow,
+    });
+    // Part of it: an aggregate, with no enter or exit flow known.
+    store.selectFromHit(0, true, leaves.slice(1));
+    expect(store.selection).toMatchObject({
+      kind: "aggregate",
+      enterFlow: null,
+      exitFlow: null,
     });
   });
 
