@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NetgamutDataset, NetgamutManifest } from "./netgamut";
 import {
   type CatalogIndex,
+  countFilters,
+  describeKinds,
   facetCounts,
   fetchCatalog,
   joinCatalog,
@@ -28,14 +30,35 @@ const dataset = (
   citations: [],
 });
 
+/** Every kind answered no, as a manifest with the kinds writes a plain network. */
+const PLAIN = {
+  weighted: false,
+  bipartite: false,
+  temporal: false,
+  multilayer: false,
+  signed: false,
+  multigraph: false,
+};
+
 const MANIFEST: NetgamutManifest = {
   netgamut: "0.3.0",
   built: "2026-11-04T12:00:00Z",
   bytes: 0,
   datasets: [
-    dataset("netzschleuder/karate", 34, 77),
-    dataset("netzschleuder/polblogs", 1224, 19090, true),
-    dataset("snap/web-Google", 875713, 5105039, true),
+    { ...dataset("netzschleuder/karate", 34, 77), ...PLAIN },
+    {
+      ...dataset("netzschleuder/polblogs", 1224, 19090, true),
+      ...PLAIN,
+      weighted: true,
+      multilayer: true,
+    },
+    // The source does not say whether it is weighted.
+    {
+      ...dataset("snap/web-Google", 875713, 5105039, true),
+      ...PLAIN,
+      weighted: null,
+    },
+    // Built before the kinds: none of them.
     dataset("snap/unindexed", 50, 60),
   ],
 };
@@ -107,6 +130,18 @@ describe("joinCatalog", () => {
       description: "",
       domains: [],
     });
+  });
+
+  it("takes the kinds from the manifest, unknown where it has none", () => {
+    expect(catalog.entries[1].kinds).toEqual({
+      ...PLAIN,
+      weighted: true,
+      multilayer: true,
+    });
+    expect(catalog.entries[2].kinds.weighted).toBeNull();
+    expect(Object.values(catalog.entries[3].kinds)).toEqual(
+      Array(6).fill(null),
+    );
   });
 
   it("orders sources as the index does, mirrored ones only", () => {
@@ -189,6 +224,19 @@ describe("searchCatalog", () => {
     ]);
   });
 
+  it("keeps the networks of every kind picked; a kind the source does not answer leaves it out", () => {
+    expect(keys({ ...NO_FILTERS, kinds: ["weighted"] })).toEqual([
+      "netzschleuder/polblogs",
+    ]);
+    expect(keys({ ...NO_FILTERS, kinds: ["weighted", "multilayer"] })).toEqual([
+      "netzschleuder/polblogs",
+    ]);
+    expect(keys({ ...NO_FILTERS, kinds: ["weighted", "signed"] })).toEqual([]);
+    expect(countFilters({ ...NO_FILTERS, kinds: ["weighted", "signed"] })).toBe(
+      2,
+    );
+  });
+
   it("keeps the networks inside a size range, ends included", () => {
     const range = { nodes: [34, 1224], links: [77, 19090] } as const;
     expect(keys({ ...NO_FILTERS, range })).toEqual([
@@ -231,6 +279,36 @@ describe("facetCounts", () => {
     expect(counts.direction.get("directed")).toBeUndefined();
     expect(counts.direction.get("undirected")).toBe(1);
     expect(counts.sources.get("netzschleuder")).toBe(1);
+  });
+
+  it("counts a kind under the kinds already picked, as they all must hold", () => {
+    const none = facetCounts(catalog.entries, NO_FILTERS);
+    expect(none.kinds.get("weighted")).toBe(1);
+    expect(none.kinds.get("bipartite")).toBeUndefined();
+    const picked = facetCounts(catalog.entries, {
+      ...NO_FILTERS,
+      kinds: ["weighted"],
+    });
+    expect(picked.kinds.get("weighted")).toBe(1);
+    expect(picked.kinds.get("multilayer")).toBe(1);
+    expect(picked.direction.get("directed")).toBe(1);
+    expect(picked.direction.get("undirected")).toBeUndefined();
+  });
+});
+
+describe("describeKinds", () => {
+  it("names the kinds a network is, and those its source does not answer", () => {
+    const [karate, polblogs, google, unindexed] = catalog.entries;
+    expect(describeKinds(polblogs.kinds)).toEqual({
+      is: "Weighted, multilayer",
+      unstated: [],
+    });
+    expect(describeKinds(karate.kinds)).toEqual({ is: "None", unstated: [] });
+    expect(describeKinds(google.kinds)).toEqual({
+      is: "None",
+      unstated: ["weighted"],
+    });
+    expect(describeKinds(unindexed.kinds)).toBeNull();
   });
 });
 

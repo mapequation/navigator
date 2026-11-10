@@ -13,6 +13,7 @@ import {
   type Direction,
   facetCounts,
   fetchCatalog,
+  type Kind,
   NO_FILTERS,
   type SizeBand,
   type SizeRange,
@@ -235,7 +236,7 @@ export class LibraryStore {
     this.filters = { ...this.filters, query };
   };
 
-  private toggle<K extends "domains" | "sources" | "sizes">(
+  private toggle<K extends "domains" | "sources" | "sizes" | "kinds">(
     facet: K,
     value: CatalogFilters[K][number],
   ): void {
@@ -251,6 +252,7 @@ export class LibraryStore {
   toggleDomain = (domain: string): void => this.toggle("domains", domain);
   toggleSource = (source: string): void => this.toggle("sources", source);
   toggleSize = (band: SizeBand): void => this.toggle("sizes", band);
+  toggleKind = (kind: Kind): void => this.toggle("kinds", kind);
   setDirection = (direction: Direction): void => {
     this.filters = { ...this.filters, direction };
   };
