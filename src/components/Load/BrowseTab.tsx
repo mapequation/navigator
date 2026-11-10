@@ -224,7 +224,7 @@ function Row({
           {plainSummary(entry.description, 320)}
         </p>
       )}
-      <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-500">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11px] text-neutral-500">
         {domain && (
           <>
             <span
@@ -238,6 +238,13 @@ function Row({
         <span className="shrink-0">
           {entry.directed ? "directed" : "undirected"}
         </span>
+        {KINDS.filter(([k]) => entry.kinds[k] === true).map(([k, text]) => (
+          // A separator stays with the kind after it when the line wraps.
+          <span key={k} className="inline-flex shrink-0 items-center gap-1.5">
+            <span className="text-neutral-300">·</span>
+            {text.toLowerCase()}
+          </span>
+        ))}
       </div>
     </div>
   );
