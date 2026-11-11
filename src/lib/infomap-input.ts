@@ -5,8 +5,11 @@ import type { LoadedNetwork } from "./types";
 export interface InfomapInput {
   network: string;
   filename: string;
-  /** Per dense node index, the id Infomap keys it by in its output. */
-  ids: readonly number[];
+  /**
+   * Per dense node index, the id Infomap keys it by in its output. None for a
+   * multilayer network, whose state ids only the run's tree says (layerStateIds).
+   */
+  ids?: readonly number[];
 }
 
 /**
@@ -33,7 +36,7 @@ export function fileInput(net: LoadedNetwork): InfomapInput {
   return {
     network: net.networkText,
     filename: net.filename,
-    ids: fileIds(net),
+    ids: net.layerIds ? undefined : fileIds(net),
   };
 }
 

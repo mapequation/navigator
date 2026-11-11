@@ -21,3 +21,8 @@ export function fileKind(filename: string): FileKind {
 export function isStatesText(text: string): boolean {
   return /^\*states\b/im.test(text);
 }
+
+/** Infomap's multilayer format: its links in *Intra, *Inter or *Multilayer sections. */
+export function isMultilayerText(text: string): boolean {
+  return /^\*(intra|inter|multilayer)\b/im.test(text);
+}
