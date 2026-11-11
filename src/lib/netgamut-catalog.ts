@@ -52,6 +52,9 @@ export const TRAITS = [
 
 export type Trait = (typeof TRAITS)[number][0];
 
+/** A trait in the filters: any network, or only those that have it (yes) or lack it (no). */
+export type TraitPick = "any" | "yes" | "no";
+
 /**
  * An entry's traits in words: the ones its source says it has ("Weighted, multilayer", or "None"), and the ones
  * the source does not answer. Null when it answers none, as in a manifest built before the traits.
@@ -238,8 +241,11 @@ export interface CatalogFilters {
   sources: readonly string[];
   sizes: readonly SizeBand[];
   direction: Direction;
-  /** Traits a network must all have, as its source says; one the source does not answer leaves it out. */
-  traits: readonly Trait[];
+  /**
+   * Per trait: any network, or only those that have it (yes) or lack it (no), as their source says. Yes and no
+   * leave out a network whose source does not say; any keeps it.
+   */
+  traits: Readonly<Record<Trait, TraitPick>>;
   range: SizeRange | null;
 }
 
@@ -249,7 +255,10 @@ export const NO_FILTERS: CatalogFilters = {
   sources: [],
   sizes: [],
   direction: "any",
-  traits: [],
+  traits: Object.fromEntries(TRAITS.map(([k]) => [k, "any"])) as Record<
+    Trait,
+    TraitPick
+  >,
   range: null,
 };
 
@@ -258,7 +267,7 @@ export const countFilters = (f: CatalogFilters): number =>
   f.domains.length +
   f.sources.length +
   f.sizes.length +
-  f.traits.length +
+  TRAITS.filter(([k]) => f.traits[k] !== "any").length +
   (f.direction === "any" ? 0 : 1) +
   (f.range ? 1 : 0);
 
@@ -316,7 +325,7 @@ export function matchScore(entry: CatalogEntry, terms: string[]): number {
   return score;
 }
 
-type Facet = "domains" | "sources" | "sizes" | "direction";
+type Facet = "domains" | "sources" | "sizes" | "direction" | Trait;
 
 function passes(e: CatalogEntry, f: CatalogFilters, skip?: Facet): boolean {
   return (
@@ -332,7 +341,12 @@ function passes(e: CatalogEntry, f: CatalogFilters, skip?: Facet): boolean {
     (skip === "direction" ||
       f.direction === "any" ||
       e.directed === (f.direction === "directed")) &&
-    f.traits.every((k) => e.traits[k] === true) &&
+    TRAITS.every(
+      ([k]) =>
+        k === skip ||
+        f.traits[k] === "any" ||
+        e.traits[k] === (f.traits[k] === "yes"),
+    ) &&
     (f.range === null ||
       (e.nodes >= f.range.nodes[0] &&
         e.nodes <= f.range.nodes[1] &&
@@ -388,8 +402,8 @@ export function searchCatalog(
 
 /**
  * Per facet value, how many entries the other filters and the query leave: what the result count becomes when
- * that value is added (OR within a facet, AND across facets). Traits AND among themselves too, so a trait counts
- * under every filter, the other traits included.
+ * that value is added (OR within a facet, AND across facets). A trait's yes and no count under every other filter,
+ * the other traits included; a network whose source does not say counts under neither.
  */
 export function facetCounts(
   entries: readonly CatalogEntry[],
@@ -399,7 +413,7 @@ export function facetCounts(
   sources: Map<string, number>;
   sizes: Map<SizeBand, number>;
   direction: Map<Exclude<Direction, "any">, number>;
-  traits: Map<Trait, number>;
+  traits: Map<Trait, { yes: number; no: number }>;
 } {
   const words = queryTerms(filters.query);
   const matching = entries.filter((e) => matchScore(e, words) > 0);
@@ -421,8 +435,15 @@ export function facetCounts(
     direction: count("direction", (e) => [
       e.directed ? ("directed" as const) : ("undirected" as const),
     ]),
-    traits: count(undefined, (e) =>
-      TRAITS.map(([k]) => k).filter((k) => e.traits[k] === true),
+    traits: new Map(
+      TRAITS.map(([k]) => {
+        const n = { yes: 0, no: 0 };
+        for (const e of matching) {
+          const has = e.traits[k];
+          if (has !== null && passes(e, filters, k)) n[has ? "yes" : "no"] += 1;
+        }
+        return [k, n];
+      }),
     ),
   };
 }

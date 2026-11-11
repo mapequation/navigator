@@ -11,6 +11,8 @@ import {
   plainSummary,
   searchCatalog,
   sizeBand,
+  type Trait,
+  type TraitPick,
 } from "./netgamut-catalog";
 
 const dataset = (
@@ -39,6 +41,12 @@ const PLAIN = {
   signed: false,
   multigraph: false,
 };
+
+/** The filters' traits: any, but for `picks`. */
+const traits = (picks: Partial<Record<Trait, TraitPick>>) => ({
+  ...NO_FILTERS.traits,
+  ...picks,
+});
 
 const MANIFEST: NetgamutManifest = {
   netgamut: "0.3.0",
@@ -224,16 +232,28 @@ describe("searchCatalog", () => {
     ]);
   });
 
-  it("keeps the networks with every trait picked; a trait the source does not answer leaves it out", () => {
-    expect(keys({ ...NO_FILTERS, traits: ["weighted"] })).toEqual([
+  it("keeps the networks that have (yes) or lack (no) each trait; one whose source does not say only under any", () => {
+    const pick = (picks: Partial<Record<Trait, TraitPick>>) =>
+      keys({ ...NO_FILTERS, traits: traits(picks) });
+    expect(pick({ weighted: "yes" })).toEqual(["netzschleuder/polblogs"]);
+    // web-Google's source does not say whether it is weighted, nor does unindexed's.
+    expect(pick({ weighted: "no" })).toEqual(["netzschleuder/karate"]);
+    // Unipartite and unsigned.
+    expect(pick({ bipartite: "no", signed: "no" })).toEqual([
+      "netzschleuder/karate",
+      "netzschleuder/polblogs",
+      "snap/web-Google",
+    ]);
+    expect(pick({ weighted: "yes", multilayer: "no" })).toEqual([]);
+    expect(pick({ weighted: "yes", multilayer: "yes" })).toEqual([
       "netzschleuder/polblogs",
     ]);
-    expect(keys({ ...NO_FILTERS, traits: ["weighted", "multilayer"] })).toEqual(
-      ["netzschleuder/polblogs"],
-    );
-    expect(keys({ ...NO_FILTERS, traits: ["weighted", "signed"] })).toEqual([]);
+    expect(pick({})).toHaveLength(4);
     expect(
-      countFilters({ ...NO_FILTERS, traits: ["weighted", "signed"] }),
+      countFilters({
+        ...NO_FILTERS,
+        traits: traits({ bipartite: "no", signed: "no" }),
+      }),
     ).toBe(2);
   });
 
@@ -281,16 +301,18 @@ describe("facetCounts", () => {
     expect(counts.sources.get("netzschleuder")).toBe(1);
   });
 
-  it("counts a trait under the traits already picked, as they all must hold", () => {
+  it("counts a trait's yes and no under every other filter, the other traits included", () => {
     const none = facetCounts(catalog.entries, NO_FILTERS);
-    expect(none.traits.get("weighted")).toBe(1);
-    expect(none.traits.get("bipartite")).toBeUndefined();
+    // The networks whose source does not say count under neither.
+    expect(none.traits.get("weighted")).toEqual({ yes: 1, no: 1 });
+    expect(none.traits.get("bipartite")).toEqual({ yes: 0, no: 3 });
     const picked = facetCounts(catalog.entries, {
       ...NO_FILTERS,
-      traits: ["weighted"],
+      traits: traits({ weighted: "yes" }),
     });
-    expect(picked.traits.get("weighted")).toBe(1);
-    expect(picked.traits.get("multilayer")).toBe(1);
+    // Its own pick aside: what picking the other gives.
+    expect(picked.traits.get("weighted")).toEqual({ yes: 1, no: 1 });
+    expect(picked.traits.get("multilayer")).toEqual({ yes: 1, no: 0 });
     expect(picked.direction.get("directed")).toBe(1);
     expect(picked.direction.get("undirected")).toBeUndefined();
   });

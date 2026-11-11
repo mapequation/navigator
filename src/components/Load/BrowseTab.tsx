@@ -22,6 +22,7 @@ import {
   type SortKey,
   sourceLabel,
   TRAITS,
+  type TraitPick,
 } from "../../lib/netgamut-catalog";
 import { useStores } from "../../stores";
 import { SearchShortcutKbd } from "../Search";
@@ -112,6 +113,73 @@ function FacetButton({
   );
 }
 
+const PICKS: readonly [TraitPick, string][] = [
+  ["any", "Any"],
+  ["yes", "Yes"],
+  ["no", "No"],
+];
+
+/**
+ * A trait: any network, or only those that have it (yes) or lack it (no). Yes and no show in their tooltip how
+ * many networks they would show.
+ */
+function TraitSwitch({
+  label,
+  pick,
+  counts,
+  onPick,
+}: {
+  label: string;
+  pick: TraitPick;
+  counts: { yes: number; no: number };
+  onPick: (pick: TraitPick) => void;
+}) {
+  return (
+    <fieldset
+      aria-label={label}
+      className="flex min-w-0 items-center gap-2 px-2 py-0.5 text-xs"
+    >
+      <span
+        className={`min-w-0 flex-1 truncate ${pick === "any" ? "text-neutral-700" : "font-medium text-blue-800"}`}
+      >
+        {label}
+      </span>
+      <span className="inline-flex shrink-0 overflow-hidden rounded-md ring-1 ring-neutral-200">
+        {PICKS.map(([p, text]) => {
+          const n = p === "any" ? null : counts[p];
+          const pressed = pick === p;
+          const empty = n === 0 && !pressed;
+          return (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={pressed}
+              disabled={empty}
+              title={
+                n === null
+                  ? undefined
+                  : `${full(n)} ${n === 1 ? "network" : "networks"}`
+              }
+              onClick={() => onPick(p)}
+              className={`border-l border-neutral-200 px-1 py-0.5 outline-none first:border-l-0 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
+                pressed
+                  ? p === "any"
+                    ? "bg-neutral-100 font-medium text-neutral-800"
+                    : "bg-blue-50 font-medium text-blue-800"
+                  : empty
+                    ? "text-neutral-300"
+                    : "text-neutral-500 hover:bg-neutral-100"
+              }`}
+            >
+              {text}
+            </button>
+          );
+        })}
+      </span>
+    </fieldset>
+  );
+}
+
 const Filters = observer(function Filters() {
   const { library } = useStores();
   const catalog = library.catalog;
@@ -158,12 +226,12 @@ const Filters = observer(function Filters() {
       <section>
         <FacetHeading hint="all of">Traits</FacetHeading>
         {TRAITS.map(([k, text]) => (
-          <FacetButton
+          <TraitSwitch
             key={k}
             label={text}
-            count={facets.traits.get(k) ?? 0}
-            pressed={filters.traits.includes(k)}
-            onPress={() => library.toggleTrait(k)}
+            pick={filters.traits[k]}
+            counts={facets.traits.get(k) ?? { yes: 0, no: 0 }}
+            onPick={(pick) => library.setTrait(k, pick)}
           />
         ))}
       </section>
