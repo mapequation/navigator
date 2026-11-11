@@ -7,3 +7,7 @@ e2e/screenshots
 test-results
 playwright-report
 /public/data
+# Claude Code: worktrees and personal settings stay local. .claude/launch.json
+# (the preview dev servers) and any shared settings, skills or agents are committed.
+.claude/worktrees/
+.claude/settings.local.json
