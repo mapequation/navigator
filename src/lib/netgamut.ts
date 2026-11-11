@@ -44,7 +44,7 @@ export interface NetgamutDataset {
   citations?: { text: string; url?: string }[];
   fingerprint?: string;
   /**
-   * The kinds of network, as the source's own catalog says: yes, no, or null where it does not say. A
+   * The network's traits, as the source's own catalog says: yes, no, or null where it does not say. A
    * manifest built before netgamut added them has none. They describe the source's dataset, not the file:
    * a multilayer dataset can reach the mirror with its layers merged (mapequation/netgamut#28).
    */

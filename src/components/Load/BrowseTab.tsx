@@ -14,14 +14,14 @@ import {
   citationText,
   countFilters,
   type Direction,
-  describeKinds,
+  describeTraits,
   explorerUrl,
-  KINDS,
   NETGAMUT_EXPLORER,
   plainSummary,
   SIZE_BANDS,
   type SortKey,
   sourceLabel,
+  TRAITS,
 } from "../../lib/netgamut-catalog";
 import { useStores } from "../../stores";
 import { SearchShortcutKbd } from "../Search";
@@ -156,14 +156,14 @@ const Filters = observer(function Filters() {
         ))}
       </section>
       <section>
-        <FacetHeading hint="all of">Kind</FacetHeading>
-        {KINDS.map(([k, text]) => (
+        <FacetHeading hint="all of">Traits</FacetHeading>
+        {TRAITS.map(([k, text]) => (
           <FacetButton
             key={k}
             label={text}
-            count={facets.kinds.get(k) ?? 0}
-            pressed={filters.kinds.includes(k)}
-            onPress={() => library.toggleKind(k)}
+            count={facets.traits.get(k) ?? 0}
+            pressed={filters.traits.includes(k)}
+            onPress={() => library.toggleTrait(k)}
           />
         ))}
       </section>
@@ -238,8 +238,8 @@ function Row({
         <span className="shrink-0">
           {entry.directed ? "directed" : "undirected"}
         </span>
-        {KINDS.filter(([k]) => entry.kinds[k] === true).map(([k, text]) => (
-          // A separator stays with the kind after it when the line wraps.
+        {TRAITS.filter(([k]) => entry.traits[k] === true).map(([k, text]) => (
+          // A separator stays with the trait after it when the line wraps.
           <span key={k} className="inline-flex shrink-0 items-center gap-1.5">
             <span className="text-neutral-300">·</span>
             {text.toLowerCase()}
@@ -465,7 +465,7 @@ const Detail = observer(function Detail({ loading }: { loading: boolean }) {
   const loadedNow = network.current?.origin?.key === e?.key;
   const citation =
     e?.citations.map((c) => citationText(c.text)).join("\n\n") ?? "";
-  const kinds = e ? describeKinds(e.kinds) : null;
+  const traits = e ? describeTraits(e.traits) : null;
   return (
     <aside
       aria-label="Network details"
@@ -524,14 +524,14 @@ const Detail = observer(function Detail({ loading }: { loading: boolean }) {
                 </dd>
               </div>
             ))}
-            {kinds && (
+            {traits && (
               <div className="col-span-2 bg-white px-3 py-2">
-                <dt className="text-[11px] text-neutral-500">Kind</dt>
+                <dt className="text-[11px] text-neutral-500">Traits</dt>
                 <dd className="font-medium text-neutral-900">
-                  {kinds.is}
-                  {kinds.unstated.length > 0 && (
+                  {traits.is}
+                  {traits.unstated.length > 0 && (
                     <span className="font-normal text-neutral-500">
-                      {` · not stated: ${kinds.unstated.join(", ")}`}
+                      {` · not stated: ${traits.unstated.join(", ")}`}
                     </span>
                   )}
                 </dd>

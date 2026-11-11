@@ -13,11 +13,11 @@ import {
   type Direction,
   facetCounts,
   fetchCatalog,
-  type Kind,
   NO_FILTERS,
   type SizeBand,
   type SizeRange,
   searchCatalog,
+  type Trait,
 } from "../lib/netgamut-catalog";
 import type { NetgamutOrigin } from "../lib/types";
 import type { ClusterStore } from "./cluster-store";
@@ -237,7 +237,7 @@ export class LibraryStore {
     this.filters = { ...this.filters, query };
   };
 
-  private toggle<K extends "domains" | "sources" | "sizes" | "kinds">(
+  private toggle<K extends "domains" | "sources" | "sizes" | "traits">(
     facet: K,
     value: CatalogFilters[K][number],
   ): void {
@@ -253,7 +253,7 @@ export class LibraryStore {
   toggleDomain = (domain: string): void => this.toggle("domains", domain);
   toggleSource = (source: string): void => this.toggle("sources", source);
   toggleSize = (band: SizeBand): void => this.toggle("sizes", band);
-  toggleKind = (kind: Kind): void => this.toggle("kinds", kind);
+  toggleTrait = (trait: Trait): void => this.toggle("traits", trait);
   setDirection = (direction: Direction): void => {
     this.filters = { ...this.filters, direction };
   };
