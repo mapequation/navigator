@@ -1,4 +1,4 @@
-import { makeAutoObservable, observable, reaction, runInAction } from "mobx";
+import { makeAutoObservable, observableRef, reaction, runInAction } from "mobx";
 import { loadFiles } from "../lib/load-files";
 import {
   downloadDataset,
@@ -166,7 +166,7 @@ export class LibraryStore {
       cluster: false,
       abort: false,
       noticeTimer: false,
-      catalog: observable.ref, // replaced whole, never mutated
+      catalog: observableRef, // replaced whole, never mutated
     });
     reaction(
       () => {

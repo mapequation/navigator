@@ -6,7 +6,7 @@ import {
   type NetworkGraph,
   type StateNetworkGraph,
 } from "@mapequation/d3gl/network";
-import { makeAutoObservable, observable } from "mobx";
+import { makeAutoObservable, observableRef } from "mobx";
 import { withClustering } from "../lib/apply-ftree";
 import { moduleChains } from "../lib/module-chains";
 import { parseNodeNames } from "../lib/node-names";
@@ -382,13 +382,13 @@ export class NetworkStore {
       this,
       {
         // The loaded network is replaced wholesale, never mutated internally —
-        // observable.ref avoids deep-proxying its ~10k-element arrays.
-        current: observable.ref,
+        // observableRef avoids deep-proxying its ~10k-element arrays.
+        current: observableRef,
         built: false,
         builtState: false,
-        lumped: observable.ref,
-        lumpedEnterFlow: observable.ref,
-        lumpedExitFlow: observable.ref,
+        lumped: observableRef,
+        lumpedEnterFlow: observableRef,
+        lumpedExitFlow: observableRef,
         engine: false,
         zoomTo: false,
         moduleLeafCache: false,
