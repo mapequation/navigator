@@ -317,20 +317,23 @@ describe("flow-border rings against Infomap's module flow", () => {
   it.each([
     ["directed", true],
     ["undirected", false],
-  ])("matches on a %s states network, from flow_as_physical", async (_, directed) => {
-    const run = await cluster("e2e/fixtures/two_triangles_states.net", {
-      directed,
-    });
-    // A states network writes no `flow`, only flow_as_physical.
-    expect(run.result.flow).toBeFalsy();
-    expect(expectRingsMatch(run)).toBe(2);
-    // Each link between physical nodes leaves one and enters another.
-    const { physicalBoundaryFlow: out, physicalBoundaryEnterFlow: into } =
-      run.clustered;
-    expect(out).toHaveLength(5);
-    expect(into).toHaveLength(5);
-    const total = (a?: Float32Array) =>
-      Array.from(a ?? []).reduce((s, v) => s + v, 0);
-    expect(total(into)).toBeCloseTo(total(out), 5);
-  });
+  ])(
+    "matches on a %s states network, from flow_as_physical",
+    async (_, directed) => {
+      const run = await cluster("e2e/fixtures/two_triangles_states.net", {
+        directed,
+      });
+      // A states network writes no `flow`, only flow_as_physical.
+      expect(run.result.flow).toBeFalsy();
+      expect(expectRingsMatch(run)).toBe(2);
+      // Each link between physical nodes leaves one and enters another.
+      const { physicalBoundaryFlow: out, physicalBoundaryEnterFlow: into } =
+        run.clustered;
+      expect(out).toHaveLength(5);
+      expect(into).toHaveLength(5);
+      const total = (a?: Float32Array) =>
+        Array.from(a ?? []).reduce((s, v) => s + v, 0);
+      expect(total(into)).toBeCloseTo(total(out), 5);
+    },
+  );
 });
