@@ -1,4 +1,4 @@
-import { makeAutoObservable, observable } from "mobx";
+import { makeAutoObservable, observableRef } from "mobx";
 
 /** The console keeps this many stdout lines of the last Infomap run; older ones are dropped. */
 export const CONSOLE_MAX_LINES = 20_000;
@@ -64,8 +64,8 @@ export class UiStore {
       this,
       "pending" | "pendingDropped" | "pendingTrials" | "flushScheduled"
     >(this, {
-      infomapOutput: observable.ref,
-      infomapTrials: observable.ref,
+      infomapOutput: observableRef,
+      infomapTrials: observableRef,
       pending: false,
       pendingDropped: false,
       pendingTrials: false,
