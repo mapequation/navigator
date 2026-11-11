@@ -23,6 +23,17 @@ export interface NetgamutDataset {
   url?: string;
   citations?: { text: string; url?: string }[];
   fingerprint?: string;
+  /**
+   * The kinds of network, as the source's own catalog says: yes, no, or null where it does not say. A
+   * manifest built before netgamut added them has none. They describe the source's dataset, not the file:
+   * a multilayer dataset can reach the mirror with its layers merged (mapequation/netgamut#28).
+   */
+  weighted?: boolean | null;
+  bipartite?: boolean | null;
+  temporal?: boolean | null;
+  multilayer?: boolean | null;
+  signed?: boolean | null;
+  multigraph?: boolean | null;
 }
 
 export interface NetgamutManifest {

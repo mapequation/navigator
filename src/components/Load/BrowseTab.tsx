@@ -14,7 +14,9 @@ import {
   citationText,
   countFilters,
   type Direction,
+  describeKinds,
   explorerUrl,
+  KINDS,
   NETGAMUT_EXPLORER,
   plainSummary,
   SIZE_BANDS,
@@ -154,6 +156,18 @@ const Filters = observer(function Filters() {
         ))}
       </section>
       <section>
+        <FacetHeading hint="all of">Kind</FacetHeading>
+        {KINDS.map(([k, text]) => (
+          <FacetButton
+            key={k}
+            label={text}
+            count={facets.kinds.get(k) ?? 0}
+            pressed={filters.kinds.includes(k)}
+            onPress={() => library.toggleKind(k)}
+          />
+        ))}
+      </section>
+      <section>
         <FacetHeading hint="any of">Nodes</FacetHeading>
         {SIZE_BANDS.map(([band]) => (
           <FacetButton
@@ -210,7 +224,7 @@ function Row({
           {plainSummary(entry.description, 320)}
         </p>
       )}
-      <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-500">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11px] text-neutral-500">
         {domain && (
           <>
             <span
@@ -224,6 +238,13 @@ function Row({
         <span className="shrink-0">
           {entry.directed ? "directed" : "undirected"}
         </span>
+        {KINDS.filter(([k]) => entry.kinds[k] === true).map(([k, text]) => (
+          // A separator stays with the kind after it when the line wraps.
+          <span key={k} className="inline-flex shrink-0 items-center gap-1.5">
+            <span className="text-neutral-300">·</span>
+            {text.toLowerCase()}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -444,6 +465,7 @@ const Detail = observer(function Detail({ loading }: { loading: boolean }) {
   const loadedNow = network.current?.origin?.key === e?.key;
   const citation =
     e?.citations.map((c) => citationText(c.text)).join("\n\n") ?? "";
+  const kinds = e ? describeKinds(e.kinds) : null;
   return (
     <aside
       aria-label="Network details"
@@ -499,6 +521,19 @@ const Detail = observer(function Detail({ loading }: { loading: boolean }) {
                 </dd>
               </div>
             ))}
+            {kinds && (
+              <div className="col-span-2 bg-white px-3 py-2">
+                <dt className="text-[11px] text-neutral-500">Kind</dt>
+                <dd className="font-medium text-neutral-900">
+                  {kinds.is}
+                  {kinds.unstated.length > 0 && (
+                    <span className="font-normal text-neutral-500">
+                      {` · not stated: ${kinds.unstated.join(", ")}`}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            )}
           </dl>
           <div className="flex flex-col gap-2">
             {loadingThis ? (

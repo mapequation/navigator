@@ -40,6 +40,34 @@ export interface CatalogIndex {
   datasets: IndexDataset[];
 }
 
+/** The kinds of network the mirror's manifest says yes, no or unknown to, in the netgamut explorer's order. */
+export const KINDS = [
+  ["weighted", "Weighted"],
+  ["bipartite", "Bipartite"],
+  ["temporal", "Temporal"],
+  ["multilayer", "Multilayer"],
+  ["signed", "Signed"],
+  ["multigraph", "Multigraph"],
+] as const;
+
+export type Kind = (typeof KINDS)[number][0];
+
+/**
+ * An entry's kinds in words: the ones its source says it is ("Weighted, multilayer", or "None"), and the ones
+ * the source does not answer. Null when it answers none, as in a manifest built before the kinds.
+ */
+export function describeKinds(
+  kinds: Record<Kind, boolean | null>,
+): { is: string; unstated: string[] } | null {
+  const is = KINDS.filter(([k]) => kinds[k] === true).map(([, l]) => l);
+  const unstated = KINDS.filter(([k]) => kinds[k] === null).map(([, l]) =>
+    l.toLowerCase(),
+  );
+  if (unstated.length === KINDS.length) return null;
+  const words = is.map((l, i) => (i === 0 ? l : l.toLowerCase())).join(", ");
+  return { is: words || "None", unstated };
+}
+
 export interface CatalogEntry {
   /** `<source>/<name>`, as in `?netgamut=<key>`. */
   key: string;
@@ -51,6 +79,8 @@ export interface CatalogEntry {
   nodes: number;
   links: number;
   directed: boolean;
+  /** Per kind: yes, no, or null where the source does not say (or the manifest predates the kinds). */
+  kinds: Record<Kind, boolean | null>;
   /** The gzipped download. */
   bytes: number;
   url?: string;
@@ -107,6 +137,9 @@ export function joinCatalog(
       nodes: dataset.nodes,
       links: dataset.edges,
       directed: dataset.directed,
+      kinds: Object.fromEntries(
+        KINDS.map(([kind]) => [kind, dataset[kind] ?? null]),
+      ) as Record<Kind, boolean | null>,
       bytes: dataset.bytes,
       url: dataset.url || about?.url || undefined,
       citations: dataset.citations?.length
@@ -205,6 +238,8 @@ export interface CatalogFilters {
   sources: readonly string[];
   sizes: readonly SizeBand[];
   direction: Direction;
+  /** Kinds a network must all be, as its source says; one the source does not answer leaves it out. */
+  kinds: readonly Kind[];
   range: SizeRange | null;
 }
 
@@ -214,6 +249,7 @@ export const NO_FILTERS: CatalogFilters = {
   sources: [],
   sizes: [],
   direction: "any",
+  kinds: [],
   range: null,
 };
 
@@ -222,6 +258,7 @@ export const countFilters = (f: CatalogFilters): number =>
   f.domains.length +
   f.sources.length +
   f.sizes.length +
+  f.kinds.length +
   (f.direction === "any" ? 0 : 1) +
   (f.range ? 1 : 0);
 
@@ -295,6 +332,7 @@ function passes(e: CatalogEntry, f: CatalogFilters, skip?: Facet): boolean {
     (skip === "direction" ||
       f.direction === "any" ||
       e.directed === (f.direction === "directed")) &&
+    f.kinds.every((k) => e.kinds[k] === true) &&
     (f.range === null ||
       (e.nodes >= f.range.nodes[0] &&
         e.nodes <= f.range.nodes[1] &&
@@ -350,7 +388,8 @@ export function searchCatalog(
 
 /**
  * Per facet value, how many entries the other filters and the query leave: what the result count becomes when
- * that value is added (OR within a facet, AND across facets).
+ * that value is added (OR within a facet, AND across facets). Kinds AND among themselves too, so a kind counts
+ * under every filter, the other kinds included.
  */
 export function facetCounts(
   entries: readonly CatalogEntry[],
@@ -360,11 +399,12 @@ export function facetCounts(
   sources: Map<string, number>;
   sizes: Map<SizeBand, number>;
   direction: Map<Exclude<Direction, "any">, number>;
+  kinds: Map<Kind, number>;
 } {
   const words = queryTerms(filters.query);
   const matching = entries.filter((e) => matchScore(e, words) > 0);
   const count = <K>(
-    facet: Facet,
+    facet: Facet | undefined,
     keys: (e: CatalogEntry) => readonly K[],
   ): Map<K, number> => {
     const counts = new Map<K, number>();
@@ -381,6 +421,9 @@ export function facetCounts(
     direction: count("direction", (e) => [
       e.directed ? ("directed" as const) : ("undirected" as const),
     ]),
+    kinds: count(undefined, (e) =>
+      KINDS.map(([k]) => k).filter((k) => e.kinds[k] === true),
+    ),
   };
 }
 
