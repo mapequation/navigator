@@ -21,11 +21,11 @@ importers:
         specifier: ^0.15.0
         version: 0.15.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@mapequation/infomap':
-        specifier: ^2.14.0
-        version: 2.14.0(react@19.2.7)
+        specifier: ^2.16.0
+        version: 2.16.0(react@19.2.7)
       '@mapequation/infomap-parser':
         specifier: ^1.0.2
-        version: 1.0.2(@mapequation/infomap@2.14.0(react@19.2.7))
+        version: 1.0.2(@mapequation/infomap@2.16.0(react@19.2.7))
       d3-interpolate:
         specifier: ^3.0.1
         version: 3.0.1
@@ -299,8 +299,8 @@ packages:
     peerDependencies:
       '@mapequation/infomap': '>=2.3.0'
 
-  '@mapequation/infomap@2.14.0':
-    resolution: {integrity: sha512-+XFQWvTsIJlDPnQ70rkzVeQ5AxRAcfsGc8HAC3WKYVQ4hwye5YPJTFGg3QxO/2iKp6ZiQJtthG1IkUpGNa9c8w==, tarball: https://registry.npmjs.org/@mapequation/infomap/-/infomap-2.14.0.tgz}
+  '@mapequation/infomap@2.16.0':
+    resolution: {integrity: sha512-5NNbS9JBRuHbTmY8jhAui4HQaySQXAid7VMIura0tvnUhhJI7WD+rPL0x+t7bHPf4IsOiHUTXNiA56qPb2gYTg==, tarball: https://registry.npmjs.org/@mapequation/infomap/-/infomap-2.16.0.tgz}
     hasBin: true
     peerDependencies:
       react: '>=16.9.0'
@@ -1999,11 +1999,11 @@ snapshots:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@mapequation/infomap-parser@1.0.2(@mapequation/infomap@2.14.0(react@19.2.7))':
+  '@mapequation/infomap-parser@1.0.2(@mapequation/infomap@2.16.0(react@19.2.7))':
     dependencies:
-      '@mapequation/infomap': 2.14.0(react@19.2.7)
+      '@mapequation/infomap': 2.16.0(react@19.2.7)
 
-  '@mapequation/infomap@2.14.0(react@19.2.7)':
+  '@mapequation/infomap@2.16.0(react@19.2.7)':
     optionalDependencies:
       react: 19.2.7
 
