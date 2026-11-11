@@ -1,6 +1,7 @@
 import { Button, Tooltip } from "@heroui/react";
 import { observer } from "mobx-react-lite";
 import { Fragment } from "react";
+import type { LoadedNetwork } from "../../lib/types";
 import { useStores } from "../../stores";
 import type { SelectionKind } from "../../stores/network-store";
 
@@ -112,9 +113,22 @@ export const SelectedNode = observer(function SelectedNode() {
   if (sel.outDegree !== null)
     push("Out-degree", sel.outDegree.toLocaleString());
   if (sel.stateId !== null) push("State id", String(sel.stateId));
-  if (sel.layerId !== null) push("Layer", String(sel.layerId));
+  if (sel.layerId !== null)
+    push("Layer", cur?.layerNames?.[sel.layerId - 1] ?? String(sel.layerId));
   // As Infomap's output names them: a state node's physical node is its node.
   if (sel.physicalId !== null) push("Node id", String(sel.physicalId));
+  // The nodes table's values of one node (one physical node of a state network).
+  const p = cur?.nodeColumns && onePhysical(cur, sel.ids);
+  if (cur?.nodeColumns && p !== undefined)
+    for (const c of cur.nodeColumns) {
+      const value =
+        c.type === "number"
+          ? Number.isNaN(c.values[p])
+            ? null
+            : String(c.values[p])
+          : (c.categories[c.codes[p]] ?? null);
+      push(c.name, value ?? "missing");
+    }
 
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
@@ -132,3 +146,18 @@ export const SelectedNode = observer(function SelectedNode() {
     </dl>
   );
 });
+
+/** The physical node all of `ids` are (nodes, or state nodes of one physical node), or undefined. */
+function onePhysical(
+  cur: LoadedNetwork,
+  ids: readonly number[],
+): number | undefined {
+  const toPhysical = cur.isStates ? cur.stateGraph?.stateToPhysical : null;
+  let p: number | undefined;
+  for (const id of ids) {
+    const q = toPhysical ? toPhysical[id] : id;
+    if (p !== undefined && q !== p) return undefined;
+    p = q;
+  }
+  return p;
+}

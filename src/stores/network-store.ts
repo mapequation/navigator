@@ -551,7 +551,9 @@ export class NetworkStore {
     const occurrenceFiles = this.occurrenceFiles;
     const net = withClustering(cur, tree, flowText, ids);
     // A partition the network was loaded with no longer produced these modules.
-    net.sources = cur.sources.filter((f) => f.kind === "network");
+    net.sources = cur.sources.filter(
+      (f) => f.kind !== "tree" && f.kind !== "clu",
+    );
     // Same nodes and links: share every buffer of the built graphs (no CSR
     // rebuild), the positions included, and swap in the new flow; the engine
     // takes it with the new modules in update() (d3gl#547).

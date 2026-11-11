@@ -512,7 +512,10 @@ const Detail = observer(function Detail({ loading }: { loading: boolean }) {
               ["Nodes", full(e.nodes)],
               ["Links", full(e.links)],
               ["Links are", e.directed ? "directed" : "undirected"],
-              ["Download", `${bytes(e.bytes)} gzipped`],
+              [
+                "Download",
+                `${bytes(e.bytes)} ${e.dataset.files ? "Parquet" : "gzipped"}`,
+              ],
             ].map(([k, v]) => (
               <div key={k} className="bg-white px-3 py-2">
                 <dt className="text-[11px] text-neutral-500">{k}</dt>

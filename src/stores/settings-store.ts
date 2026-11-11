@@ -1,14 +1,16 @@
 import type { SchemeName, ToneName } from "@mapequation/c3";
 import { makeAutoObservable } from "mobx";
+import type { ColumnScale } from "../lib/column-colors";
 
 export type NodeSizeBy = "flow" | "degree";
 export type ScaleKind = "linear" | "root";
 /**
  * Node and link colours: a categorical colour per module, or shades of flow
  * (node flow for the fill, the flow-border value for the rings, the link
- * weight for the links), as in d3gl's flow-borders example.
+ * weight for the links), as in d3gl's flow-borders example, or the nodes by a
+ * column of their nodes table (colorColumn), as cosmograph.app colours them.
  */
-export type ColorBy = "module" | "flow";
+export type ColorBy = "module" | "flow" | "column";
 /** c3's hue source for the module colours: the OKLCH hue circle or a d3 colour scheme. */
 export type ColorHue = "Oklch" | SchemeName;
 /**
@@ -31,6 +33,10 @@ export class SettingsStore {
   nodeSizeBy: NodeSizeBy = "flow";
   nodeScale: ScaleKind = "root";
   colorBy: ColorBy = "module";
+  /** The nodes-table column to colour by (null or not in the network: its first). */
+  colorColumn: string | null = null;
+  /** How colorColumn colours: categories or a scale (null: the column's default, defaultScale). */
+  colorColumnScale: ColumnScale | null = null;
   /**
    * Module colours from c3's hierarchy(): its tone (null = c3's default:
    * strong, or inferred from a scheme), hue source, and the offset of the

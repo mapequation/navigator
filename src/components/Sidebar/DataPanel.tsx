@@ -140,6 +140,11 @@ const Origin = observer(function Origin({ origin }: { origin: NetworkOrigin }) {
           netgamut catalog
         </a>
       </p>
+      {origin.note && (
+        <p className="text-neutral-500">
+          {origin.note.replace(/[^.!?]$/, "$&.")}
+        </p>
+      )}
       <div className="flex gap-1">
         <Button
           size="sm"
@@ -301,7 +306,9 @@ export const DataPanel = observer(function DataPanel() {
                 This unloads {cur.filename}
                 {store.occurrenceFiles.length > 0 && " and its metadata files"}.
                 {cur.modules &&
-                  cur.sources.every((f) => f.kind === "network") &&
+                  cur.sources.every((f) =>
+                    ["network", "links", "nodes"].includes(f.kind),
+                  ) &&
                   " Its modules come from an Infomap run in this session: download them first to keep them."}
               </p>
             </AlertDialog.Body>

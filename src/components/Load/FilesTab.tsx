@@ -23,7 +23,18 @@ const FORMATS: readonly [string, string][] = [
     "Infomap's multilayer format: *Vertices, then *Intra, *Inter or *Multilayer links.",
   ],
   [".tree / .clu", "A partition for the network; Infomap computes the flow."],
-  [".csv / .tsv", "Lists of node names, shown as metadata overlays."],
+  [
+    "links table",
+    "A .csv, .tsv or .parquet table with source and target columns, and optional weight and layer columns.",
+  ],
+  [
+    "nodes table",
+    "A table for the links table with an id column, an optional name, and any columns to colour the nodes by.",
+  ],
+  [
+    ".csv / .tsv",
+    "Other tables: lists of node names, shown as metadata overlays.",
+  ],
 ];
 
 function Toggle({
@@ -134,7 +145,9 @@ export const FilesTab = observer(function FilesTab({
   };
 
   const hasPartition = files.some((f) => f.kind === "tree" || f.kind === "clu");
-  const hasNetworkFile = files.some((f) => f.kind === "network");
+  const hasNetworkFile = files.some(
+    (f) => f.kind === "network" || f.kind === "links",
+  );
   // Files just dropped: the next step is Load, so it takes the focus (Enter loads).
   const loadButton = useRef<HTMLButtonElement>(null);
   // Also when the tab opens after a drop on another tab.
@@ -146,7 +159,11 @@ export const FilesTab = observer(function FilesTab({
 
   const kinds = [...new Set(files.map((f) => f.kind))];
   // The network (or Infomap result) to load, as the file starts.
-  const first = files.find((f) => f.kind === "network" || f.kind === "ftree");
+  const first = files.find(
+    (f) =>
+      (f.kind === "network" || f.kind === "ftree" || f.kind === "links") &&
+      !f.bytes,
+  );
   const preview = first && {
     name: first.name,
     lines: first.text.slice(0, 8000).split("\n").slice(0, 60).join("\n"),

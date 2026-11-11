@@ -3,10 +3,11 @@ import { runInAction } from "mobx";
 import { observer } from "mobx-react-lite";
 import { useCallback, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { fileKind } from "../../lib/file-kinds";
+import { isBinaryFile, tableFileKind } from "../../lib/file-kinds";
 import { loadInfomapOnline } from "../../lib/infomap-online";
 import type { CurrentLoad, StagedFile } from "../../lib/load-plan";
 import { restage } from "../../lib/load-plan";
+import { delimitedHeader, parquetColumns } from "../../lib/tables";
 import type { LoadedNetwork } from "../../lib/types";
 import { useStores } from "../../stores";
 import type { LoadTab } from "../../stores/library-store";
@@ -61,16 +62,39 @@ export interface LoadContext {
   drops: number;
 }
 
-async function stage(accepted: File[]): Promise<StagedFile[]> {
-  return Promise.all(
-    accepted.map(async (f) => ({
-      id: crypto.randomUUID(),
-      name: f.name,
-      size: f.size,
-      text: await f.text(),
-      kind: fileKind(f.name),
-    })),
+/**
+ * Read dropped files: text, or bytes for a Parquet table. A table's kind (links, nodes or a metadata list)
+ * comes from its columns. A file that can't be read is left out, with the reason in `errors`.
+ */
+async function stage(
+  accepted: File[],
+): Promise<{ files: StagedFile[]; errors: string[] }> {
+  const errors: string[] = [];
+  const read = await Promise.all(
+    accepted.map(async (f): Promise<StagedFile | null> => {
+      try {
+        const bytes = isBinaryFile(f.name)
+          ? new Uint8Array(await f.arrayBuffer())
+          : undefined;
+        const text = bytes ? "" : await f.text();
+        const kind = tableFileKind(f.name, () =>
+          bytes ? parquetColumns(bytes) : delimitedHeader(text, f.name),
+        );
+        return {
+          id: crypto.randomUUID(),
+          name: f.name,
+          size: f.size,
+          text,
+          kind,
+          ...(bytes ? { bytes } : {}),
+        };
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+        return null;
+      }
+    }),
   );
+  return { files: read.filter((f) => f !== null), errors };
 }
 
 /** The load dialog: examples, the netgamut catalog and the user's own files, one tab each. */
@@ -128,12 +152,13 @@ export const LoadDialog = observer(function LoadDialog() {
   const onDrop = useCallback(
     async (accepted: File[]) => {
       if (accepted.length === 0) return;
-      const named = await stage(accepted);
+      const { files: named, errors } = await stage(accepted);
+      if (errors.length) ui.setLoadError(errors.join("\n"));
       setFiles((prev) => [...prev, ...named]);
       setDrops((n) => n + 1);
       library.setTab("files");
     },
-    [library],
+    [library, ui],
   );
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
