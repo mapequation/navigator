@@ -9,6 +9,7 @@ import type { TreeNode, TreeStateNode } from "@mapequation/infomap/filetypes";
 import type { ModuleFlow } from "./boundary-flow";
 import type { FileKind } from "./file-kinds";
 import type { NetworkStats } from "./network-stats";
+import type { NodeColumn } from "./tables";
 
 /** A JSON tree node row; state trees add stateId (and layerId for multilayer). */
 export type InfomapTreeNode = TreeNode &
@@ -39,6 +40,8 @@ export interface SourceFile {
   size: number;
   text: string;
   kind: FileKind;
+  /** A binary file's bytes (a Parquet table); `text` is then empty. */
+  bytes?: Uint8Array;
 }
 
 /** A network from the netgamut catalog: where it is from and how to cite it. */
@@ -51,6 +54,8 @@ export interface NetgamutOrigin {
   /** The source's page for the dataset. */
   url?: string;
   citations: { text: string; url?: string }[];
+  /** The mirror's note on the network, such as why one tagged multilayer has no layers. */
+  note?: string;
 }
 
 /** Where a network that is not the user's own file came from. */
@@ -145,6 +150,13 @@ export interface LoadedNetwork {
   partialNodeFlow?: string;
   /** Every module's enter/exit flow, by pathKey (root ""): from the in-app Infomap run, or an .ftree's *Links headers. */
   moduleFlow?: Map<string, ModuleFlow>;
+  /**
+   * A nodes table's columns, per dense node (per dense physical node of a state network), to colour the
+   * nodes by. Only for a network loaded from tables.
+   */
+  nodeColumns?: NodeColumn[];
+  /** Layer names by layer number - 1, when a links table names its layers. */
+  layerNames?: string[];
   /** Raw network file text — enables (re-)clustering with Infomap. */
   networkText?: string;
 }

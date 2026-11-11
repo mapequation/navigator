@@ -18,6 +18,13 @@ import { byteLength, computeStats } from "./network-stats";
 import { type ParsedMultilayer, parseMultilayer } from "./parse-multilayer";
 import { type ParsedStates, parseStates } from "./parse-states";
 import { runInfomap } from "./run-infomap";
+import {
+  nodeColumnsFor,
+  readDelimited,
+  readParquet,
+  type Table,
+  tablesToNetwork,
+} from "./tables";
 import type { ClusterOptions, LoadedNetwork, SourceFile } from "./types";
 
 export interface NamedText {
@@ -27,6 +34,8 @@ export interface NamedText {
   size?: number;
   /** Kind as staged (a restaged metadata .txt); from the extension otherwise. */
   kind?: FileKind;
+  /** A binary file's bytes (Parquet); `text` is then empty. */
+  bytes?: Uint8Array;
 }
 
 const kindOf = (f: NamedText): FileKind => f.kind ?? fileKind(f.name);
@@ -223,22 +232,31 @@ async function loadStructure(
 ): Promise<LoadedNetwork> {
   const ftrees = files.filter((f) => kindOf(f) === "ftree");
   const partitions = files.filter((f) => ["tree", "clu"].includes(kindOf(f)));
+  const linkTables = files.filter((f) => kindOf(f) === "links");
+  const nodeTables = files.filter((f) => kindOf(f) === "nodes");
   const networks = files.filter((f) => kindOf(f) === "network");
 
-  if (ftrees.length > 1 || networks.length > 1 || partitions.length > 1) {
+  if (
+    ftrees.length > 1 ||
+    networks.length + linkTables.length > 1 ||
+    partitions.length > 1 ||
+    nodeTables.length > 1
+  ) {
     throw new Error(
-      "Load at most one network, one ftree, and one partition file",
+      "Load at most one network or links table, one nodes table, one ftree, and one partition file",
     );
   }
+  if (nodeTables.length && !linkTables.length)
+    throw new Error("A nodes table needs its links table");
   if (ftrees.length) {
-    if (networks.length || partitions.length) {
+    if (networks.length || linkTables.length || partitions.length) {
       throw new Error(
         "Load an .ftree alone, or a network file with an optional partition",
       );
     }
     return ftreeToNetwork(ftrees[0].text, ftrees[0].name, ftrees[0].size);
   }
-  if (!networks.length) {
+  if (!networks.length && !linkTables.length) {
     throw new Error(
       partitions.length
         ? "A partition file needs its network file"
@@ -248,20 +266,26 @@ async function loadStructure(
     );
   }
 
-  const net = networkToLoaded(
-    networks[0].text,
-    networks[0].name,
-    opts.directed || undefined,
-    networks[0].size,
-  );
+  const tables = linkTables.length
+    ? await tablesToLoaded(linkTables[0], nodeTables[0], opts.directed)
+    : undefined;
+  const network = tables?.network ?? networks[0];
+  const net =
+    tables?.net ??
+    networkToLoaded(
+      network.text,
+      network.name,
+      opts.directed || undefined,
+      network.size,
+    );
   if (!partitions.length) return net;
 
   const partition = partitions[0];
   const args = buildInfomapArgs({ ...opts, clusterFilename: partition.name });
   cb.onInfomapStart?.(`infomap ${infomapArgString(args)}`);
   const { tree, flow } = await runInfomap({
-    network: networks[0].text,
-    filename: networks[0].name,
+    network: network.text,
+    filename: network.name,
     args,
     files: { [partition.name]: partition.text },
     onLog: cb.onLog,
@@ -278,4 +302,75 @@ async function loadStructure(
     },
   ];
   return clustered;
+}
+
+const sourceOf = (f: NamedText): SourceFile => ({
+  name: f.name,
+  size: f.size ?? f.bytes?.byteLength ?? byteLength(f.text),
+  text: f.text,
+  kind: kindOf(f),
+  ...(f.bytes ? { bytes: f.bytes } : {}),
+});
+
+/** Read a CSV, TSV or Parquet table. */
+export async function readTable(f: NamedText): Promise<Table> {
+  try {
+    return f.bytes ? await readParquet(f.bytes) : readDelimited(f.text, f.name);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      message.startsWith(f.name) ? message : `${f.name}: ${message}`,
+    );
+  }
+}
+
+/** The network name for a links table: its file name without the table's extensions. */
+export const tableStem = (filename: string): string =>
+  filename.replace(/(\.links)?\.(csv|tsv|parquet)$/i, "");
+
+/**
+ * Load a links table, and its nodes table, as the network they make (tablesToNetwork): its file text is
+ * what Infomap reads, and the nodes table's other columns colour the nodes (`nodeColumns`).
+ */
+export async function tablesToLoaded(
+  linksFile: NamedText,
+  nodesFile: NamedText | undefined,
+  directed: boolean,
+): Promise<{ net: LoadedNetwork; network: NamedText }> {
+  const [links, nodes] = await Promise.all([
+    readTable(linksFile),
+    nodesFile ? readTable(nodesFile) : undefined,
+  ]);
+  // Directed when asked, or when the file says so, as netgamut's tables do in their metadata (as *Arcs
+  // makes a Pajek file directed).
+  const isDirected = directed || links.meta?.["netgamut:directed"] === "true";
+  const name = `${tableStem(linksFile.name)}.net`;
+  const table = tablesToNetwork(links, nodes, {
+    directed: isDirected,
+    name: linksFile.name,
+  });
+  const network = { name, text: table.text };
+  const net = networkToLoaded(table.text, name, isDirected || undefined);
+  net.sources = [linksFile, ...(nodesFile ? [nodesFile] : [])].map(sourceOf);
+  // The nodes' file ids: per node, or per physical node of a state network.
+  const vertexOfNode = net.isStates
+    ? physicalVertices(net)
+    : (net.physicalIds ?? []);
+  if (table.columns.length)
+    net.nodeColumns = nodeColumnsFor(
+      table.columns,
+      table.rowOfVertex,
+      vertexOfNode,
+    );
+  if (table.layerNames) net.layerNames = table.layerNames;
+  return { net, network };
+}
+
+/** A state network's file id per dense physical node. */
+function physicalVertices(net: LoadedNetwork): number[] {
+  const toPhysical = net.stateGraph?.stateToPhysical ?? [];
+  const ids = net.physicalIds ?? [];
+  const out = new Array<number>(net.physicalNames?.length ?? 0).fill(-1);
+  for (let s = 0; s < toPhysical.length; s++) out[toPhysical[s]] = ids[s];
+  return out;
 }

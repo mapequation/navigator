@@ -1,8 +1,13 @@
+import type { FileKind } from "./file-kinds";
+import type { NamedText } from "./load-files";
+
 /**
  * netgamut (mapequation/netgamut) catalogs network datasets across sources. Their hosts don't let web pages
- * read the files, so `netgamut export-networks` re-hosts them as gzipped Pajek on the `mirror` branch of
- * mapequation/netgamut-networks, listed in an index.json manifest. raw.githubusercontent.com serves them
- * with CORS but without a Content-Encoding: the browser gunzips them.
+ * read the files, so `netgamut export-networks` re-hosts them on the `mirror` branch of
+ * mapequation/netgamut-networks, listed in an index.json manifest. Format 1 writes gzipped Pajek, which
+ * raw.githubusercontent.com serves with CORS but without a Content-Encoding: the browser gunzips it.
+ * Format 2 writes a links table and, where the source has one, a nodes table in Parquet per network
+ * (`files`), as netgamut's docs/guide/operations.md, "The mirror's files", describes.
  */
 export const NETGAMUT_MIRROR: string =
   import.meta.env.VITE_NETGAMUT_MIRROR ||
@@ -12,12 +17,27 @@ export interface NetgamutDataset {
   /** `<source>/<name>`, as in `?netgamut=<key>`. */
   key: string;
   title: string;
-  /** The gzipped Pajek file, relative to the manifest URL. */
-  file: string;
-  /** Size of the gzipped file. */
+  /** Format 1: the gzipped Pajek file, relative to the manifest URL. */
+  file?: string;
+  /**
+   * Format 2: the links table and, where the source has a node table, the nodes table, in Parquet,
+   * relative to the manifest URL.
+   */
+  files?: { links: string; nodes?: string };
+  /** Size of the file (format 1) or of both files (format 2). */
   bytes: number;
+  /** Distinct node ids (format 2: across both files). */
   nodes: number;
-  edges: number;
+  /** Format 1: the links in the Pajek file. */
+  edges?: number;
+  /** Format 2: the rows in the links table. */
+  links?: number;
+  /** Format 2: the layers, where the network has them. */
+  layers?: number;
+  /** Format 2: free-text columns left out of the tables. */
+  dropped?: { nodes?: string[]; links?: string[] };
+  /** Format 2: a note on the network, such as why one tagged multilayer has no layers. */
+  note?: string;
   directed: boolean;
   /** The source's page for the dataset. */
   url?: string;
@@ -37,6 +57,8 @@ export interface NetgamutDataset {
 }
 
 export interface NetgamutManifest {
+  /** 2: Parquet tables per network (`files`); missing: format 1, gzipped Pajek (`file`). */
+  format?: number;
   /** The netgamut version that built the mirror. */
   netgamut: string;
   /** ISO-8601 build time. */
@@ -45,13 +67,17 @@ export interface NetgamutManifest {
   datasets: NetgamutDataset[];
   /** Catalog datasets the mirror left out, and why. */
   skipped?: { key: string; reason: string }[];
+  /** Catalog datasets the export failed on, and why. */
+  failed?: { key: string; reason: string }[];
 }
 
 export interface NetgamutNetwork {
   dataset: NetgamutDataset;
-  /** A file name for the loader: the dataset title, as a Pajek file. */
-  name: string;
-  text: string;
+  /**
+   * The files for the loader: a Pajek file named by the dataset title (format 1), or the links table and the
+   * nodes table, as bytes (format 2).
+   */
+  files: NamedText[];
 }
 
 /** The dataset `key` names in `manifest`; an error that says why when it has none. */
@@ -61,7 +87,10 @@ export function findDataset(
 ): NetgamutDataset {
   const dataset = manifest.datasets.find((d) => d.key === key);
   if (dataset) return dataset;
-  const skipped = manifest.skipped?.find((s) => s.key === key);
+  const skipped = [
+    ...(manifest.skipped ?? []),
+    ...(manifest.failed ?? []),
+  ].find((s) => s.key === key);
   throw new Error(
     skipped
       ? `The netgamut mirror leaves out "${key}": ${skipped.reason}`
@@ -162,7 +191,7 @@ export async function fetchNetgamut(
   return downloadDataset(findDataset(manifest, key), options);
 }
 
-/** Download `dataset`, listed in the manifest at `manifestUrl`, gunzipped. */
+/** Download `dataset`, listed in the manifest at `manifestUrl`: gunzipped (format 1), or its tables (format 2). */
 export async function downloadDataset(
   dataset: NetgamutDataset,
   {
@@ -173,29 +202,85 @@ export async function downloadDataset(
   }: FetchOptions = {},
 ): Promise<NetgamutNetwork> {
   const base = new URL(manifestUrl, globalThis.location?.href);
-  const url = new URL(dataset.file, base).href;
   const label = `Downloading ${dataset.title} (${megabytes(dataset.bytes)})…`;
   onPhase?.(label);
   onProgress?.(0, dataset.bytes);
   let percent = 0;
+  // Bytes read of every file so far.
+  let done = 0;
+  const progress = (read: number): void => {
+    const total = done + read;
+    const p = Math.min(100, Math.floor((100 * total) / dataset.bytes));
+    if (p === percent) return;
+    percent = p;
+    onPhase?.(`${label} ${p}%`);
+    onProgress?.(total, dataset.bytes);
+  };
+  const urlOf = (file: string): string => new URL(file, base).href;
+  let url = "";
   try {
+    if (dataset.files) {
+      const { links, nodes } = dataset.files;
+      const files: NamedText[] = [];
+      const tables: [string, FileKind][] = [[links, "links"]];
+      if (nodes) tables.push([nodes, "nodes"]);
+      for (const [path, kind] of tables) {
+        url = urlOf(path);
+        const res = await fetchOk(url, signal);
+        const bytes = await readBytes(res, progress);
+        done += bytes.byteLength;
+        files.push({
+          name: path.split("/").pop() ?? path,
+          text: "",
+          bytes,
+          size: bytes.byteLength,
+          kind,
+        });
+      }
+      return { dataset, files };
+    }
+    if (!dataset.file)
+      throw new Error("the mirror lists no file for it (file or files)");
+    url = urlOf(dataset.file);
     const res = await fetchOk(url, signal);
     if (!res.body) throw new Error("empty response");
-    const text = await gunzipText(res.body, (read) => {
-      const p = Math.min(100, Math.floor((100 * read) / dataset.bytes));
-      if (p === percent) return;
-      percent = p;
-      onPhase?.(`${label} ${p}%`);
-      onProgress?.(read, dataset.bytes);
-    });
+    const text = await gunzipText(res.body, progress);
     return {
       dataset,
-      name: `${dataset.title.replace(/[/\\]/g, "_")}.net`,
-      text,
+      files: [
+        {
+          name: `${dataset.title.replace(/[/\\]/g, "_")}.net`,
+          text,
+          kind: "network",
+        },
+      ],
     };
   } catch (err) {
     throw new Error(
-      `Could not load ${dataset.title} from ${url}: ${reason(err)}`,
+      `Could not load ${dataset.title}${url ? ` from ${url}` : ""}: ${reason(err)}`,
     );
   }
+}
+
+/** A response's bytes, with the count read so far once per chunk. */
+async function readBytes(
+  res: Response,
+  onBytes: (read: number) => void,
+): Promise<Uint8Array> {
+  if (!res.body) throw new Error("empty response");
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let read = 0;
+  for (let r = await reader.read(); !r.done; r = await reader.read()) {
+    chunks.push(r.value);
+    read += r.value.byteLength;
+    onBytes(read);
+  }
+  const out = new Uint8Array(read);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.byteLength;
+  }
+  return out;
 }

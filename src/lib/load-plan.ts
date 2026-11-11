@@ -9,6 +9,8 @@ export interface StagedFile {
   size: number;
   text: string;
   kind: FileKind;
+  /** A binary file's bytes (a Parquet table); `text` is then empty. */
+  bytes?: Uint8Array;
   /** Restaged metadata file: the id of its loaded OccurrenceFile. */
   occurrenceId?: string;
 }
@@ -45,6 +47,7 @@ export function restage(cur: CurrentLoad): StagedFile[] {
       size: f.size,
       text: f.text,
       kind: f.kind,
+      ...(f.bytes ? { bytes: f.bytes } : {}),
     })),
     ...cur.metadata.map((f) => ({
       id: crypto.randomUUID(),
@@ -70,7 +73,8 @@ function sameOptions(
   b: ClusterOptions,
 ): boolean {
   const kinds = new Set(sources.map((f) => f.kind));
-  if (kinds.has("network") && a.directed !== b.directed) return false;
+  if ((kinds.has("network") || kinds.has("links")) && a.directed !== b.directed)
+    return false;
   if (kinds.has("tree") || kinds.has("clu"))
     return a.twoLevel === b.twoLevel && a.noInfomap === b.noInfomap;
   return true;
@@ -92,7 +96,11 @@ export function planLoad(
   const unmatched = [...cur.sources];
   for (const f of structural) {
     const i = unmatched.findIndex(
-      (s) => s.kind === f.kind && s.name === f.name && s.text === f.text,
+      (s) =>
+        s.kind === f.kind &&
+        s.name === f.name &&
+        s.text === f.text &&
+        s.bytes === f.bytes,
     );
     if (i < 0) return { type: "load" };
     unmatched.splice(i, 1);

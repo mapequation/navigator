@@ -79,9 +79,19 @@ export const HelpModal = observer(function HelpModal() {
                   Stop stops it.
                 </li>
                 <li>
-                  Metadata: <code>.csv</code> or <code>.tsv</code> lists of node
-                  names. Metadata overlap colours each list's nodes and shows
-                  how many a selected module holds against chance.
+                  Tables, in <code>.csv</code>, <code>.tsv</code> or{" "}
+                  <code>.parquet</code>: a links table with <code>source</code>{" "}
+                  and <code>target</code> columns, and optional{" "}
+                  <code>weight</code> and <code>layer</code> columns (a{" "}
+                  <code>layer</code> column makes it multilayer), with an
+                  optional nodes table: an <code>id</code> column, an optional{" "}
+                  <code>name</code>, and any columns to colour the nodes by in
+                  the Color section, numbers as categories or on a scale.
+                </li>
+                <li>
+                  Metadata: other <code>.csv</code> or <code>.tsv</code> lists
+                  of node names. Metadata overlap colours each list's nodes and
+                  shows how many a selected module holds against chance.
                 </li>
               </List>
               <p className="text-sm text-neutral-600">

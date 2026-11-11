@@ -81,7 +81,7 @@ export interface CatalogEntry {
   directed: boolean;
   /** Per kind: yes, no, or null where the source does not say (or the manifest predates the kinds). */
   kinds: Record<Kind, boolean | null>;
-  /** The gzipped download. */
+  /** The download: the gzipped Pajek file (format 1), or the Parquet tables (format 2). */
   bytes: number;
   url?: string;
   citations: { text: string; url?: string }[];
@@ -135,7 +135,7 @@ export function joinCatalog(
       description: about?.description ?? "",
       domains: about?.domains ?? [],
       nodes: dataset.nodes,
-      links: dataset.edges,
+      links: dataset.links ?? dataset.edges ?? 0,
       directed: dataset.directed,
       kinds: Object.fromEntries(
         KINDS.map(([kind]) => [kind, dataset[kind] ?? null]),

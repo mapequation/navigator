@@ -86,6 +86,7 @@ export function originOf(dataset: NetgamutDataset): NetgamutOrigin {
     name: dataset.key.slice(slash + 1),
     url: dataset.url,
     citations: dataset.citations ?? [],
+    ...(dataset.note ? { note: dataset.note } : {}),
   };
 }
 
@@ -338,7 +339,7 @@ export class LibraryStore {
         }),
     };
     try {
-      const { dataset, name, text } = known
+      const { dataset, files } = known
         ? await downloadDataset(known, options)
         : await fetchNetgamut(key, options);
       if (signal.aborted) return;
@@ -348,7 +349,7 @@ export class LibraryStore {
       ui.setViewPhase("Reading the network…");
       await nextPaint();
       // noInfomap: the network stays without modules (Infomap otherwise clusters it as it loads).
-      const net = await loadFiles([{ name, text }], {
+      const net = await loadFiles(files, {
         directed: dataset.directed,
         twoLevel: false,
         noInfomap,

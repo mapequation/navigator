@@ -1,12 +1,14 @@
 import { Header, ListBox, NumberField, Select, Slider } from "@heroui/react";
 import { type SchemeName, type ToneName, tones } from "@mapequation/c3";
 import { observer } from "mobx-react-lite";
+import { type ColumnScale, pickColumn, scaleOf } from "../../lib/column-colors";
 import { useStores } from "../../stores";
 import type {
   ColorBy,
   ColorHue,
   LayoutBackend,
 } from "../../stores/settings-store";
+import { ColumnLegend } from "./ColumnLegend";
 import { Group, Row, Segmented, Toggle } from "./controls";
 
 const TONES = Object.keys(tones) as ToneName[];
@@ -123,7 +125,21 @@ export const ColorPanel = observer(function ColorPanel() {
   const { network: store, settings } = useStores();
   const cur = store.current;
   const hasFlow = cur ? !!cur.graph.nodeFlow : true;
-  const byFlow = hasFlow && settings.colorBy === "flow";
+  const columns = cur?.nodeColumns ?? [];
+  const options: ColorBy[] = [
+    "module",
+    ...(hasFlow ? (["flow"] as const) : []),
+    ...(columns.length ? (["column"] as const) : []),
+  ];
+  const colorBy = options.includes(settings.colorBy)
+    ? settings.colorBy
+    : "module";
+  const byFlow = colorBy === "flow";
+  const column =
+    colorBy === "column"
+      ? pickColumn(columns, settings.colorColumn)
+      : undefined;
+  const scale = column && scaleOf(column, settings.colorColumnScale);
   const scheme = settings.colorHue !== "Oklch";
   const offset = settings.colorOffset ?? defaultOffset(settings.colorHue);
 
@@ -131,20 +147,67 @@ export const ColorPanel = observer(function ColorPanel() {
     <>
       <Row
         label="Color by"
-        hint={
-          hasFlow
-            ? "module: a colour per module · flow: shades of node flow, links by weight"
-            : undefined
-        }
+        hint={`module: a colour per module${hasFlow ? " · flow: shades of node flow, links by weight" : ""}${columns.length ? " · column: a column of the nodes table" : ""}`}
       >
         <Segmented
           label="Color by"
-          value={hasFlow ? settings.colorBy : "module"}
-          options={["module", "flow"] as const satisfies ColorBy[]}
-          isDisabled={!hasFlow}
+          value={colorBy}
+          options={options}
+          isDisabled={options.length < 2}
           onChange={(v) => settings.set("colorBy", v)}
         />
       </Row>
+      {column && (
+        <>
+          <Row label="Column" hint="A column of the nodes table">
+            <Select
+              aria-label="Node column to colour by"
+              selectedKey={column.name}
+              onSelectionChange={(k) => {
+                settings.set("colorColumn", String(k));
+                settings.set("colorColumnScale", null);
+              }}
+              className="w-36"
+            >
+              <Select.Trigger>
+                {/* The column's name alone: the list adds its type. */}
+                <Select.Value>
+                  {({ selectedText }) => selectedText}
+                </Select.Value>
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {columns.map((c) => (
+                    <ListBox.Item key={c.name} id={c.name} textValue={c.name}>
+                      {c.name}
+                      <span className="ml-auto text-xs text-neutral-400">
+                        {c.type === "number" ? "numbers" : "text"}
+                      </span>
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+          </Row>
+          {column.type === "number" && scale && (
+            <Row
+              label="As"
+              hint="categories: a colour per value, as for a module id · scale: a ramp over the numbers"
+            >
+              <Segmented
+                label="Color the numbers as"
+                value={scale}
+                options={
+                  ["categories", "scale"] as const satisfies ColumnScale[]
+                }
+                onChange={(v) => settings.set("colorColumnScale", v)}
+              />
+            </Row>
+          )}
+          {scale && <ColumnLegend column={column} scale={scale} />}
+        </>
+      )}
       {!hasFlow && (
         <p className="text-xs text-neutral-400">
           Flow colours need node flow: run Infomap first.

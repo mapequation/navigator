@@ -12,6 +12,7 @@ import { computed, observable, reaction, runInAction } from "mobx";
 import { observer } from "mobx-react-lite";
 import { useEffect, useRef } from "react";
 import { c3ModuleColor, type ModuleColor } from "../lib/c3-module-colors";
+import { columnColorOf, pickColumn, scaleOf } from "../lib/column-colors";
 import { fitTransform } from "../lib/fit-transform";
 import { pathKey } from "../lib/path-key";
 import {
@@ -207,8 +208,25 @@ export function buildStyle(
           ).slice(0, -1);
     return color(path) ?? DEFAULT_NODE_FILL;
   };
+  // By a node column: a node's colour is its physical node's, in every view.
+  // A lump is one physical node's state nodes in one module (d3gl#529).
+  const column =
+    settings.colorBy === "column"
+      ? pickColumn(cur?.nodeColumns, settings.colorColumn)
+      : undefined;
+  const columnFill = column
+    ? columnColorOf(column, scaleOf(column, settings.colorColumnScale)).fill
+    : null;
+  const physicalOf = (i: number, g: NetworkGraph): number =>
+    !sg || g === sg.physical
+      ? i
+      : ((lumped ? lumped.graph : sg).stateToPhysical[i] ?? i);
   const fillOf = (i: number, g: NetworkGraph): string =>
-    flowColors ? flowFill(g.flow?.[i] ?? 0) : moduleFillOf(i, g);
+    columnFill
+      ? columnFill(physicalOf(i, g))
+      : flowColors
+        ? flowFill(g.flow?.[i] ?? 0)
+        : moduleFillOf(i, g);
   // Occurrence ids are state ids in a state network: its physical graph's
   // nodes, and lumps, take the colour of a file that holds one of their
   // state nodes.
@@ -298,11 +316,13 @@ export function buildStyle(
           for (const f of files) if (f.ids.has(i)) return f.color;
           return fillOf(i, g);
         }
-      : flowColors
-        ? { by: "flow", scale: flowFill }
-        : color
-          ? { by: "module", color }
-          : DEFAULT_NODE_FILL,
+      : columnFill
+        ? fillOf
+        : flowColors
+          ? { by: "flow", scale: flowFill }
+          : color
+            ? { by: "module", color }
+            : DEFAULT_NODE_FILL,
     // Flow borders show the share of a glyph's flow that leaves it, its exit
     // flow over its flow, as a share of its area (d3gl#510): a node whose exit
     // flow is its flow is covered. A node has one where an in-app Infomap run

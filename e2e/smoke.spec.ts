@@ -1284,6 +1284,56 @@ test.describe("Network Navigator smoke", () => {
     expect(errors.filter(isFatal)).toEqual([]);
   });
 
+  test("tables: Parquet links and nodes load, and colour the nodes by a column", async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    // netgamut's karate, from its mirror's format 2.
+    await addFiles(page, [
+      fixture("karate.links.parquet"),
+      fixture("karate.nodes.parquet"),
+    ]);
+    await noInfomap(page);
+    await page.getByRole("button", { name: "Load", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Load network" }),
+    ).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
+    await expect(page.locator("main canvas")).toBeVisible();
+    const value = (label: string) =>
+      page
+        .locator("dt", { hasText: label })
+        .locator("xpath=following-sibling::dd[1]");
+    await expect(value("Nodes")).toHaveText("34");
+    await expect(value("Links")).toHaveText("77");
+
+    // Zoom in; colouring by a column keeps the camera.
+    const box = await page.locator("main canvas").boundingBox();
+    if (!box) throw new Error("no canvas");
+    await settledTransform(page);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -400);
+    const camera = await settledTransform(page);
+
+    await page
+      .getByRole("radiogroup", { name: "Color by" })
+      .getByRole("radio", { name: "column" })
+      .click();
+    await page.getByRole("button", { name: /Node column to colour by/ }).click();
+    await page.getByRole("option", { name: /^groups/ }).click();
+    // groups holds integers: a colour per value, as for a module id.
+    const as = page.getByRole("radiogroup", { name: "Color the numbers as" });
+    await expect(as.getByRole("radio", { name: "categories" })).toBeChecked();
+    const legend = page.locator("li", { hasText: /^1\s*17$/ });
+    await expect(legend).toBeVisible();
+    await expect(page.locator("li", { hasText: /^2\s*17$/ })).toBeVisible();
+    await as.getByRole("radio", { name: "scale" }).click();
+    await expect(legend).toHaveCount(0);
+    expect(await viewTransform(page)).toEqual(camera);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    expect(errors.filter(isFatal)).toEqual([]);
+  });
+
   test("errors: an edge-list line without a target names its line", async ({
     page,
   }) => {
