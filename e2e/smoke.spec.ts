@@ -1289,10 +1289,16 @@ test.describe("Network Navigator smoke", () => {
   }) => {
     const errors = collectErrors(page);
     await page.goto("/");
-    // netgamut's karate, from its mirror's format 2.
+    // netgamut's karate, from its mirror's format 2 (scripts/netgamut-fixtures.mjs).
+    const karate = (name: string) =>
+      path.join(
+        __dirname,
+        "../src/lib/__fixtures__/netgamut/netzschleuder",
+        name,
+      );
     await addFiles(page, [
-      fixture("karate.links.parquet"),
-      fixture("karate.nodes.parquet"),
+      karate("karate.links.parquet"),
+      karate("karate.nodes.parquet"),
     ]);
     await noInfomap(page);
     await page.getByRole("button", { name: "Load", exact: true }).click();

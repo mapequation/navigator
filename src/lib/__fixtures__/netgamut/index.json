@@ -8,7 +8,7 @@
         "links": "netzschleuder/karate.links.parquet",
         "nodes": "netzschleuder/karate.nodes.parquet"
       },
-      "bytes": 5474,
+      "bytes": 4331,
       "nodes": 34,
       "links": 77,
       "directed": false,
@@ -19,7 +19,8 @@
           "url": "https://doi.org/10.1086/jar.33.4.3629752"
         }
       ],
-      "fingerprint": "66661922e4b334eb"
+      "fingerprint": "66661922e4b334eb",
+      "dropped": { "nodes": ["_pos"], "links": [] }
     },
     {
       "key": "netzschleuder/london_transport",
@@ -28,7 +29,7 @@
         "links": "netzschleuder/london_transport.links.parquet",
         "nodes": "netzschleuder/london_transport.nodes.parquet"
       },
-      "bytes": 26866,
+      "bytes": 17865,
       "nodes": 369,
       "links": 441,
       "directed": false,
@@ -40,16 +41,14 @@
         }
       ],
       "fingerprint": "98b6d77c21cd9c87",
-      "layers": 3
+      "layers": 3,
+      "dropped": { "nodes": ["_pos"], "links": [] }
     },
     {
       "key": "netzschleuder/physician_trust",
       "title": "physician_trust",
-      "files": {
-        "links": "netzschleuder/physician_trust.links.parquet",
-        "nodes": "netzschleuder/physician_trust.nodes.parquet"
-      },
-      "bytes": 12055,
+      "files": { "links": "netzschleuder/physician_trust.links.parquet" },
+      "bytes": 5228,
       "nodes": 241,
       "links": 1098,
       "directed": true,
@@ -69,6 +68,7 @@
         }
       ],
       "fingerprint": "f1866b0e6bd88cf8",
+      "dropped": { "nodes": ["_pos"], "links": [] },
       "note": "netzschleuder tags this network multilayer, but its data has no layers"
     },
     {

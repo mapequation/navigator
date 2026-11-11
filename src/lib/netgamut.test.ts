@@ -163,8 +163,8 @@ describe("fetchNetgamut", () => {
 });
 
 /**
- * Format 2, from netgamut's own export: four networks of a sample mirror, with its index.json, in
- * __fixtures__/netgamut.
+ * Format 2, from netgamut's own export: four networks of the mirror in __fixtures__/netgamut, with an
+ * index.json that lists only them. scripts/netgamut-fixtures.mjs refreshes them.
  */
 describe("the mirror's format 2", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -215,13 +215,11 @@ describe("the mirror's format 2", () => {
     expect(net.graph.nodeCount).toBe(34);
     expect(net.graph.source.length).toBe(77);
     expect(net.names[0]).toBe("1");
-    expect(net.nodeColumns?.map((c) => c.name)).toEqual([
-      "index",
-      "groups",
-      "_pos",
-    ]);
+    // netgamut leaves out index (each value is the id) and _pos (listed under dropped).
+    expect(dataset.dropped).toEqual({ nodes: ["_pos"], links: [] });
+    expect(net.nodeColumns?.map((c) => c.name)).toEqual(["groups"]);
     // groups holds numbers that name groups: categories, by default.
-    const groups = net.nodeColumns?.[1];
+    const groups = net.nodeColumns?.[0];
     if (!groups) throw new Error("groups");
     expect(defaultScale(groups)).toBe("categories");
     const { legend } = columnColorOf(groups, "categories");
@@ -261,9 +259,14 @@ describe("the mirror's format 2", () => {
     expect(legend.missing).toBe(551);
   });
 
-  it("reads a dataset's note", async () => {
-    serveMirror();
+  it("reads a dataset's note, and a links table with no nodes table", async () => {
+    const fetched = serveMirror();
     const { dataset, net } = await load("netzschleuder/physician_trust");
+    expect(fetched).toEqual([
+      "index.json",
+      "netzschleuder/physician_trust.links.parquet",
+    ]);
+    expect(net.nodeColumns).toBeUndefined();
     expect(dataset.note).toMatch(/no layers/);
     expect(net.isStates).toBeFalsy();
     expect(net.directed).toBe(true);
