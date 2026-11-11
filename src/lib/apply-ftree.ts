@@ -9,11 +9,52 @@ import type { InfomapTree, InfomapTreeNode, LoadedNetwork } from "./types";
  * ids, which Infomap refuses (names) or reads as other nodes (01 as 1).
  */
 export function fileIds(net: LoadedNetwork): readonly number[] {
+  if (net.layerIds) {
+    throw new Error(
+      `${net.filename}: a multilayer file names no state ids; Infomap's output is matched by layer instead`,
+    );
+  }
   const ids = net.isStates && net.stateIds ? net.stateIds : net.physicalIds;
   if (!ids) {
     throw new Error(
       `${net.filename}: Infomap's output can't be matched to its nodes; that needs every node label to be a plain integer id, such as 0, 7 or 42 (not a name, 01 or +1)`,
     );
+  }
+  return ids;
+}
+
+/**
+ * The ids a run gave a multilayer network's state nodes, per dense index.
+ * Infomap numbers the state nodes itself, so each tree node is matched to the
+ * state node of its layer and physical node, and its state id keys the rest of
+ * the output (the flow's links). A tree node without a layer, or of a state
+ * node the file lacks, can't be matched: an error says so.
+ */
+export function layerStateIds(
+  net: LoadedNetwork,
+  tree: InfomapTree,
+): readonly number[] {
+  const { layerIds, physicalIds } = net;
+  if (!layerIds || !physicalIds)
+    throw new Error(`${net.filename} is not a multilayer network`);
+  const dense = new Map<string, number>();
+  layerIds.forEach((layer, i) => {
+    dense.set(`${layer} ${physicalIds[i]}`, i);
+  });
+  const ids: number[] = new Array(layerIds.length);
+  for (const n of tree.nodes) {
+    if (n.layerId === undefined || n.stateId === undefined) {
+      throw new Error(
+        `${net.filename}: Infomap's output gives node ${n.id} no layer, so it can't be matched to a state node`,
+      );
+    }
+    const i = dense.get(`${n.layerId} ${n.id}`);
+    if (i === undefined) {
+      throw new Error(
+        `${net.filename}: Infomap's output has node ${n.id} in layer ${n.layerId}, which the file has no link for`,
+      );
+    }
+    ids[i] = n.stateId;
   }
   return ids;
 }
@@ -28,13 +69,16 @@ export function fileIds(net: LoadedNetwork): readonly number[] {
  * where they miss the tree's module exit and enter flow; see boundaryFlow.
  *
  * `ids` are the ids the run gave the nodes, per dense index: the file's
- * (fileIds) unless Navigator wrote the network for it (infomapInput).
+ * (fileIds) unless Navigator wrote the network for it (infomapInput), and a
+ * multilayer network's from the tree itself (layerStateIds).
  */
 export function withClustering(
   net: LoadedNetwork,
   tree: InfomapTree,
   flowText?: string,
-  ids: readonly number[] = fileIds(net),
+  ids: readonly number[] = net.layerIds
+    ? layerStateIds(net, tree)
+    : fileIds(net),
 ): LoadedNetwork {
   // Raw states networks are keyed by state id; plain networks by physical id.
   const keyOf = (n: InfomapTreeNode): number =>

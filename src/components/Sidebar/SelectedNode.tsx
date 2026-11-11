@@ -112,6 +112,7 @@ export const SelectedNode = observer(function SelectedNode() {
   if (sel.outDegree !== null)
     push("Out-degree", sel.outDegree.toLocaleString());
   if (sel.stateId !== null) push("State id", String(sel.stateId));
+  if (sel.layerId !== null) push("Layer", String(sel.layerId));
   // As Infomap's output names them: a state node's physical node is its node.
   if (sel.physicalId !== null) push("Node id", String(sel.physicalId));
 

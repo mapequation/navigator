@@ -79,6 +79,8 @@ export interface SelectionInfo {
   outDegree: number | null;
   /** A single state node's state id (a lump of one state node's too). */
   stateId: number | null;
+  /** A single state node's layer, in a multilayer network (a lump of one state node's too). */
+  layerId: number | null;
   /** The file's id of a node, physical node, lump's or state node's physical node. */
   physicalId: number | null;
 }
@@ -527,6 +529,7 @@ export class NetworkStore {
       ...degreesOf(lumped.graph.state, l),
       // A lump of one state node is that state node.
       stateId: ids.length === 1 ? (cur.stateIds?.[ids[0]] ?? null) : null,
+      layerId: ids.length === 1 ? (cur.layerIds?.[ids[0]] ?? null) : null,
       physicalId: cur.physicalIds?.[ids[0] ?? -1] ?? null,
     };
     if (path) this.breadcrumb = path;
@@ -613,6 +616,7 @@ export class NetworkStore {
         linksOnly: !!cur.partialNodeFlow,
         ...degreesOf(sg.physical, physical),
         stateId: null,
+        layerId: null,
         physicalId: cur.physicalIds?.[ids[0] ?? -1] ?? null,
       };
       if (path) this.breadcrumb = path;
@@ -637,6 +641,7 @@ export class NetworkStore {
         linksOnly: !!cur.partialNodeFlow,
         ...degreesOf(this.built, id),
         stateId: cur.isStates ? (cur.stateIds?.[id] ?? null) : null,
+        layerId: cur.layerIds?.[id] ?? null,
         physicalId: cur.physicalIds?.[id] ?? null,
       };
       if (path) this.breadcrumb = path;
@@ -669,6 +674,7 @@ export class NetworkStore {
       inDegree: null,
       outDegree: null,
       stateId: null,
+      layerId: null,
       physicalId: null,
     };
     if (path) this.breadcrumb = path;

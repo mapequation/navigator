@@ -18,6 +18,10 @@ const FORMATS: readonly [string, string][] = [
   [".net", "A Pajek network: *Vertices with names, then *Edges or *Arcs."],
   ["edge list", "One link per line: source, target and an optional weight."],
   ["states", "A state network: *Vertices, *States and *Links."],
+  [
+    "multilayer",
+    "Infomap's multilayer format: *Vertices, then *Intra, *Inter or *Multilayer links.",
+  ],
   [".tree / .clu", "A partition for the network; Infomap computes the flow."],
   [".csv / .tsv", "Lists of node names, shown as metadata overlays."],
 ];

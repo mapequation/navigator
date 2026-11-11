@@ -1251,6 +1251,39 @@ test.describe("Network Navigator smoke", () => {
     expect(errors.filter(isFatal)).toEqual([]);
   });
 
+  test("multilayer: *Intra layers load as state nodes, and Infomap clusters them by layer", async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await addFiles(page, [fixture("two_triangles_layers.net")]);
+    await page.getByRole("button", { name: "Load", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Load network" }),
+    ).toBeHidden({ timeout: MODAL_CLOSE_TIMEOUT });
+
+    // Each physical node is a state node in each layer it has links in: six
+    // physical nodes, ten state nodes, and the file's nine links only.
+    const value = (label: string) =>
+      page
+        .locator("dt", { hasText: label })
+        .locator("xpath=following-sibling::dd[1]");
+    await expect(value("State nodes")).toHaveText("10");
+    await expect(value("Physical nodes")).toHaveText("6");
+    await expect(value("Links")).toHaveText("9");
+    await expect(
+      page.getByRole("radiogroup", { name: "State view" }),
+    ).toBeVisible();
+    // Infomap reads the layers itself and its state nodes are matched back by
+    // layer: the two triangles are two modules.
+    await expect(
+      page.getByRole("button", { name: "Re-run Infomap" }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(value("Top modules")).toHaveText("2");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    expect(errors.filter(isFatal)).toEqual([]);
+  });
+
   test("errors: an edge-list line without a target names its line", async ({
     page,
   }) => {

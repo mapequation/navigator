@@ -6,11 +6,17 @@ import {
 } from "@mapequation/d3gl/network";
 import { withClustering } from "./apply-ftree";
 import { degreeExitFlow, degreeFlow } from "./degree-flow";
-import { type FileKind, fileKind, isStatesText } from "./file-kinds";
+import {
+  type FileKind,
+  fileKind,
+  isMultilayerText,
+  isStatesText,
+} from "./file-kinds";
 import { ftreeToNetwork } from "./ftree-graph";
 import { buildInfomapArgs, infomapArgString } from "./infomap-args";
 import { byteLength, computeStats } from "./network-stats";
-import { parseStates } from "./parse-states";
+import { type ParsedMultilayer, parseMultilayer } from "./parse-multilayer";
+import { type ParsedStates, parseStates } from "./parse-states";
 import { runInfomap } from "./run-infomap";
 import type { ClusterOptions, LoadedNetwork, SourceFile } from "./types";
 
@@ -26,10 +32,11 @@ export interface NamedText {
 const kindOf = (f: NamedText): FileKind => f.kind ?? fileKind(f.name);
 
 /**
- * Parse a raw network file (Pajek, edge list, or *States) into a LoadedNetwork.
- * `directedOverride: true` forces directed links (mirroring Infomap's `-d` flag);
- * undefined defers to the file format (Pajek *Arcs directed, *Edges undirected,
- * states default directed).
+ * Parse a raw network file (Pajek, edge list, *States, or multilayer) into a
+ * LoadedNetwork. `directedOverride: true` forces directed links (mirroring
+ * Infomap's `-d` flag); undefined defers to the file format (Pajek *Arcs
+ * directed, *Edges undirected, states directed, multilayer undirected, as
+ * Infomap reads them).
  */
 export function networkToLoaded(
   text: string,
@@ -40,44 +47,20 @@ export function networkToLoaded(
   const sources: SourceFile[] = [
     { name: filename, size, text, kind: "network" },
   ];
-  if (isStatesText(text)) {
-    const parsed = parseStates(text, filename, directedOverride ?? true);
-    const g = parsed.stateGraph;
-    // Until Infomap runs: the state nodes' degree flow (the physical nodes'
-    // is its sum), and each view's flow borders.
-    const nodeFlow = degreeFlow(g.stateCount, g.source, g.target, g.weight);
-    const physicalCount = g.physicalCount ?? parsed.physicalNames.length;
-    // Read as undirected, the flow enters each node as it leaves it.
-    const exit = degreeExitFlow(g.stateCount, g.source, g.target, g.weight);
-    const physicalExit = degreeExitFlow(
-      physicalCount,
-      g.source,
-      g.target,
-      g.weight,
-      g.stateToPhysical,
-    );
-    return {
-      kind: "raw",
+  if (isMultilayerText(text))
+    return stateNetwork(
+      parseMultilayer(text, filename, directedOverride ?? false),
+      text,
       filename,
       sources,
-      stats: computeStats(g.stateCount, g.source, g.target, g.weight, {
-        physicalIds: parsed.physicalIds,
-      }),
-      directed: parsed.stateGraph.directed ?? true,
-      isStates: true,
-      graph: { ...parsed.graph, nodeFlow },
-      stateGraph: { ...parsed.stateGraph, nodeFlow },
-      names: parsed.names,
-      physicalNames: parsed.physicalNames,
-      physicalIds: parsed.physicalIds,
-      stateIds: parsed.stateIds,
-      networkText: text,
-      boundaryFlow: exit,
-      boundaryEnterFlow: exit,
-      physicalBoundaryFlow: physicalExit,
-      physicalBoundaryEnterFlow: physicalExit,
-    };
-  }
+    );
+  if (isStatesText(text))
+    return stateNetwork(
+      parseStates(text, filename, directedOverride ?? true),
+      text,
+      filename,
+      sources,
+    );
   const { parsed, physicalIds, edgeList } = parseWithIds(text, filename);
   const directed = directedOverride ?? parsed.directed;
   // Until Infomap runs. Read as undirected, the flow enters each node as it
@@ -120,6 +103,55 @@ export function networkToLoaded(
     networkText: text,
     boundaryFlow: exit,
     boundaryEnterFlow: exit,
+  };
+}
+
+/**
+ * A state network as loaded: a *States file, or a multilayer one, whose state
+ * nodes are its physical nodes in each layer, known by layer, not by state id.
+ */
+function stateNetwork(
+  parsed: ParsedStates | ParsedMultilayer,
+  text: string,
+  filename: string,
+  sources: SourceFile[],
+): LoadedNetwork {
+  const g = parsed.stateGraph;
+  // Until Infomap runs: the state nodes' degree flow (the physical nodes'
+  // is its sum), and each view's flow borders.
+  const nodeFlow = degreeFlow(g.stateCount, g.source, g.target, g.weight);
+  const physicalCount = g.physicalCount ?? parsed.physicalNames.length;
+  // Read as undirected, the flow enters each node as it leaves it.
+  const exit = degreeExitFlow(g.stateCount, g.source, g.target, g.weight);
+  const physicalExit = degreeExitFlow(
+    physicalCount,
+    g.source,
+    g.target,
+    g.weight,
+    g.stateToPhysical,
+  );
+  return {
+    kind: "raw",
+    filename,
+    sources,
+    stats: computeStats(g.stateCount, g.source, g.target, g.weight, {
+      physicalIds: parsed.physicalIds,
+    }),
+    directed: g.directed ?? true,
+    isStates: true,
+    graph: { ...parsed.graph, nodeFlow },
+    stateGraph: { ...g, nodeFlow },
+    names: parsed.names,
+    physicalNames: parsed.physicalNames,
+    physicalIds: parsed.physicalIds,
+    ...("layerIds" in parsed
+      ? { layerIds: parsed.layerIds }
+      : { stateIds: parsed.stateIds }),
+    networkText: text,
+    boundaryFlow: exit,
+    boundaryEnterFlow: exit,
+    physicalBoundaryFlow: physicalExit,
+    physicalBoundaryEnterFlow: physicalExit,
   };
 }
 

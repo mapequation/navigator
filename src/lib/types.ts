@@ -92,6 +92,12 @@ export interface LoadedNetwork {
   edgeList?: boolean;
   /** Original state id per dense index (states only). */
   stateIds?: number[];
+  /**
+   * Multilayer only: the layer per dense index. A multilayer file names no
+   * state ids: Infomap numbers its state nodes itself, so its output is matched
+   * by layer and physical id (layerStateIds).
+   */
+  layerIds?: number[];
   /** Per-node Infomap paths, dense-index keyed (kind === "clustered"). */
   modules?: ModuleNode[];
   /**

@@ -69,8 +69,11 @@ export const HelpModal = observer(function HelpModal() {
                   A network: Pajek (<code>.net</code>, <code>.paj</code>) or an
                   edge list (<code>.txt</code>, <code>.edges</code>,{" "}
                   <code>.edgelist</code>), a state network with its{" "}
-                  <code>*States</code> section too. Add a <code>.tree</code> or{" "}
-                  <code>.clu</code> partition for its modules; without one,
+                  <code>*States</code> section too, or a multilayer network in
+                  Infomap's format (<code>*Intra</code>, <code>*Inter</code> or{" "}
+                  <code>*Multilayer</code> links), each physical node a state
+                  node in every layer it has links in. Add a <code>.tree</code>{" "}
+                  or <code>.clu</code> partition for its modules; without one,
                   Infomap finds them as the network loads, with the options in
                   the Modules section, where Re-run Infomap runs it again and
                   Stop stops it.

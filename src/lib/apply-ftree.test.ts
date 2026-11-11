@@ -128,6 +128,43 @@ describe("withClustering", () => {
     expect(out.physicalNames).toEqual(["a", "b"]);
   });
 
+  it("matches multilayer trees by layer and physical id, whatever state ids Infomap gives", () => {
+    const ml = networkToLoaded(
+      '*Vertices 3\n1 "a"\n2 "b"\n3 "c"\n*Intra\n1 1 2 1\n2 1 3 2\n',
+      "toy_layers.net",
+    );
+    // State nodes in link order: a in 1, b in 1, a in 2, c in 2.
+    const out = withClustering(
+      ml,
+      tree([
+        { path: [1, 1], flow: 0.4, name: "a", stateId: 7, layerId: 2, id: 1 },
+        { path: [1, 2], flow: 0.3, name: "c", stateId: 5, layerId: 2, id: 3 },
+        { path: [2, 1], flow: 0.2, name: "a", stateId: 9, layerId: 1, id: 1 },
+        { path: [2, 2], flow: 0.1, name: "b", stateId: 6, layerId: 1, id: 2 },
+      ]),
+    );
+    expect(out.modules?.map((m) => m.path)).toEqual([
+      [2, 1],
+      [2, 2],
+      [1, 1],
+      [1, 2],
+    ]);
+    expect(out.layerIds).toEqual([1, 1, 2, 2]);
+    expect(out.stateIds).toBeUndefined();
+  });
+
+  it("names a multilayer tree node it can't match", () => {
+    const ml = networkToLoaded(
+      '*Vertices 2\n1 "a"\n2 "b"\n*Intra\n1 1 2\n',
+      "l.net",
+    );
+    const node = { path: [1], flow: 0.5, name: "a", stateId: 0, id: 1 };
+    expect(() => withClustering(ml, tree([{ ...node, layerId: 3 }]))).toThrow(
+      "node 1 in layer 3, which the file has no link for",
+    );
+    expect(() => withClustering(ml, tree([node]))).toThrow("no layer");
+  });
+
   it("does not mutate the input", () => {
     expect(raw.kind).toBe("raw");
     expect(raw.modules).toBeUndefined();
