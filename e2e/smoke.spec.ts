@@ -1289,16 +1289,12 @@ test.describe("Network Navigator smoke", () => {
   }) => {
     const errors = collectErrors(page);
     await page.goto("/");
-    // netgamut's karate, from its mirror's format 2 (scripts/netgamut-fixtures.mjs).
-    const karate = (name: string) =>
-      path.join(
-        __dirname,
-        "../src/lib/__fixtures__/netgamut/netzschleuder",
-        name,
-      );
+    // The small tables scripts/parquet-fixtures.py writes in netgamut's format 2.
+    const table = (name: string) =>
+      path.join(__dirname, "../src/lib/__fixtures__", name);
     await addFiles(page, [
-      karate("karate.links.parquet"),
-      karate("karate.nodes.parquet"),
+      table("toy.links.parquet"),
+      table("toy.nodes.parquet"),
     ]);
     await noInfomap(page);
     await page.getByRole("button", { name: "Load", exact: true }).click();
@@ -1310,8 +1306,8 @@ test.describe("Network Navigator smoke", () => {
       page
         .locator("dt", { hasText: label })
         .locator("xpath=following-sibling::dd[1]");
-    await expect(value("Nodes")).toHaveText("34");
-    await expect(value("Links")).toHaveText("77");
+    await expect(value("Nodes")).toHaveText("8");
+    await expect(value("Links")).toHaveText("8");
 
     // Zoom in; colouring by a column keeps the camera.
     const box = await page.locator("main canvas").boundingBox();
@@ -1326,13 +1322,13 @@ test.describe("Network Navigator smoke", () => {
       .getByRole("radio", { name: "column" })
       .click();
     await page.getByRole("button", { name: /Node column to colour by/ }).click();
-    await page.getByRole("option", { name: /^groups/ }).click();
-    // groups holds integers: a colour per value, as for a module id.
+    await page.getByRole("option", { name: /^size/ }).click();
+    // size holds integers: a colour per value, as for a module id.
     const as = page.getByRole("radiogroup", { name: "Color the numbers as" });
     await expect(as.getByRole("radio", { name: "categories" })).toBeChecked();
-    const legend = page.locator("li", { hasText: /^1\s*17$/ });
+    const legend = page.locator("li", { hasText: /^10\s*1$/ });
     await expect(legend).toBeVisible();
-    await expect(page.locator("li", { hasText: /^2\s*17$/ })).toBeVisible();
+    await expect(page.locator("li", { hasText: /^90\s*1$/ })).toBeVisible();
     await as.getByRole("radio", { name: "scale" }).click();
     await expect(legend).toHaveCount(0);
     expect(await viewTransform(page)).toEqual(camera);
