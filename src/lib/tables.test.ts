@@ -183,6 +183,16 @@ describe("tablesToNetwork", () => {
     );
   });
 
+  it("keeps integer layers' numbers, with no layer names", () => {
+    const links = readDelimited("source,target,layer\n1,2,1\n2,3,3");
+    const net = tablesToNetwork(links, undefined, {
+      directed: false,
+      name: "e",
+    });
+    expect(net.layerNames).toBeUndefined();
+    expect(net.text).toContain("*Intra\n1 1 2\n3 2 3\n");
+  });
+
   it("refuses a links table without source and target", () => {
     expect(() =>
       tablesToNetwork(readDelimited("a,b\n1,2"), undefined, {

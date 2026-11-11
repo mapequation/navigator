@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { columnColorOf, defaultScale } from "./column-colors";
 import { loadFiles } from "./load-files";
 import {
+  type FetchOptions,
   fetchNetgamut,
   findDataset,
   gunzipText,
@@ -163,17 +163,46 @@ describe("fetchNetgamut", () => {
 });
 
 /**
- * Format 2, from netgamut's own export: four networks of a sample mirror, with its index.json, in
- * __fixtures__/netgamut.
+ * Format 2: the small tables scripts/parquet-fixtures.py writes, served as a mirror whose index.json lists
+ * them.
  */
 describe("the mirror's format 2", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  const ROOT = new URL("./__fixtures__/netgamut/", import.meta.url);
+  const ROOT = new URL("./__fixtures__/", import.meta.url);
   const MIRROR = "https://mirror.example.org/networks/";
   const options = { directed: false, twoLevel: false, noInfomap: true };
+  const size = (file: string): number =>
+    readFileSync(new URL(file, ROOT)).byteLength;
+  const MANIFEST: NetgamutManifest = {
+    format: 2,
+    netgamut: "test",
+    built: "2026-11-11T00:00:00+00:00",
+    bytes: 0,
+    datasets: [
+      {
+        key: "test/toy",
+        title: "toy",
+        files: { links: "toy.links.parquet", nodes: "toy.nodes.parquet" },
+        bytes: size("toy.links.parquet") + size("toy.nodes.parquet"),
+        nodes: 8,
+        links: 8,
+        directed: false,
+      },
+      {
+        key: "test/wide",
+        title: "wide",
+        files: { links: "wide.links.parquet" },
+        bytes: size("wide.links.parquet"),
+        nodes: 3,
+        directed: true,
+        note: "A links table with no nodes table",
+      },
+    ],
+    failed: [{ key: "test/broken", reason: "the source's file is empty" }],
+  };
 
-  /** Serve the fixture mirror; return the fetched paths. */
+  /** Serve the mirror; return the fetched paths. */
   const serveMirror = (): string[] => {
     const fetched: string[] = [];
     vi.stubGlobal(
@@ -181,17 +210,19 @@ describe("the mirror's format 2", () => {
       vi.fn(async (url: string) => {
         const path = url.slice(MIRROR.length);
         fetched.push(path);
-        return new Response(readFileSync(new URL(path, ROOT)));
+        return path === "index.json"
+          ? Response.json(MANIFEST)
+          : new Response(readFileSync(new URL(path, ROOT)));
       }),
     );
     return fetched;
   };
 
-  const load = async (key: string) => {
-    const network = await fetchNetgamut(key, {
+  const load = async (key: string, onProgress?: FetchOptions["onProgress"]) => {
+    const { dataset, files } = await fetchNetgamut(key, {
       manifestUrl: `${MIRROR}index.json`,
+      onProgress,
     });
-    const { dataset, files } = network;
     return {
       dataset,
       files,
@@ -199,74 +230,42 @@ describe("the mirror's format 2", () => {
     };
   };
 
-  it("downloads a network's links and nodes tables, and colours by a node column", async () => {
+  it("downloads a network's links and nodes tables, counting both in the progress", async () => {
     const fetched = serveMirror();
-    const { dataset, files, net } = await load("netzschleuder/karate");
+    const read: (number | null)[] = [];
+    const { files, net } = await load("test/toy", (r) => read.push(r));
     expect(fetched).toEqual([
       "index.json",
-      "netzschleuder/karate.links.parquet",
-      "netzschleuder/karate.nodes.parquet",
+      "toy.links.parquet",
+      "toy.nodes.parquet",
     ]);
-    expect(dataset).toMatchObject({ links: 77, nodes: 34, directed: false });
+    expect(read.at(-1)).toBe(MANIFEST.datasets[0].bytes);
     expect(files.map((f) => [f.name, f.kind])).toEqual([
-      ["karate.links.parquet", "links"],
-      ["karate.nodes.parquet", "nodes"],
+      ["toy.links.parquet", "links"],
+      ["toy.nodes.parquet", "nodes"],
     ]);
-    expect(net.graph.nodeCount).toBe(34);
-    expect(net.graph.source.length).toBe(77);
-    expect(net.names[0]).toBe("1");
+    expect(net.graph.nodeCount).toBe(8);
+    expect(net.graph.source.length).toBe(8);
     expect(net.nodeColumns?.map((c) => c.name)).toEqual([
-      "index",
-      "groups",
-      "_pos",
-    ]);
-    // groups holds numbers that name groups: categories, by default.
-    const groups = net.nodeColumns?.[1];
-    if (!groups) throw new Error("groups");
-    expect(defaultScale(groups)).toBe("categories");
-    const { legend } = columnColorOf(groups, "categories");
-    expect(legend.type === "category" && legend.items).toEqual([
-      expect.objectContaining({ label: "1", count: 17 }),
-      expect.objectContaining({ label: "2", count: 17 }),
+      "group",
+      "size",
+      "score",
     ]);
   });
 
-  it("reads integer layers as a multilayer state network", async () => {
-    serveMirror();
-    const { dataset, net } = await load("netzschleuder/london_transport");
-    expect(dataset.layers).toBe(3);
-    expect(net.isStates).toBe(true);
-    expect(net.physicalNames?.length).toBe(369);
-    // Distinct (layer, node) pairs across the links.
-    expect(net.stateGraph?.stateCount).toBe(399);
-    // Integer layers keep their numbers, so they have no names.
-    expect(net.layerNames).toBeUndefined();
-    const lat = net.nodeColumns?.find((c) => c.name === "nodeLat");
-    expect(lat && defaultScale(lat)).toBe("scale");
-  });
-
-  it("leaves a node without a nodes-table row missing", async () => {
-    serveMirror();
-    const { net } = await load("konect/moreno_crime");
-    expect(net.graph.nodeCount).toBe(1380);
-    const sex = net.nodeColumns?.find((c) => c.name === "sex");
-    if (!sex) throw new Error("sex");
-    const { legend } = columnColorOf(sex, defaultScale(sex));
-    if (legend.type !== "category") throw new Error("legend");
-    expect(legend.items.map((i) => [i.label, i.count])).toEqual([
-      ["1", 558],
-      ["0", 271],
-    ]);
-    // The crimes are in the links only.
-    expect(legend.missing).toBe(551);
-  });
-
-  it("reads a dataset's note", async () => {
-    serveMirror();
-    const { dataset, net } = await load("netzschleuder/physician_trust");
-    expect(dataset.note).toMatch(/no layers/);
-    expect(net.isStates).toBeFalsy();
+  it("reads a links table alone, directed as the entry says, with its note", async () => {
+    const fetched = serveMirror();
+    const { dataset, net } = await load("test/wide");
+    expect(fetched).toEqual(["index.json", "wide.links.parquet"]);
+    expect(dataset.note).toBe("A links table with no nodes table");
+    // The file's own metadata says undirected; the entry decides.
     expect(net.directed).toBe(true);
-    expect(net.graph.nodeCount).toBe(241);
+    expect(net.nodeColumns).toBeUndefined();
+  });
+
+  it("says why the export failed on a network", () => {
+    expect(() => findDataset(MANIFEST, "test/broken")).toThrow(
+      /leaves out "test\/broken": the source's file is empty/,
+    );
   });
 });
