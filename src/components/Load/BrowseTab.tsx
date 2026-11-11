@@ -14,14 +14,15 @@ import {
   citationText,
   countFilters,
   type Direction,
-  describeKinds,
+  describeTraits,
   explorerUrl,
-  KINDS,
   NETGAMUT_EXPLORER,
   plainSummary,
   SIZE_BANDS,
   type SortKey,
   sourceLabel,
+  TRAITS,
+  type TraitPick,
 } from "../../lib/netgamut-catalog";
 import { useStores } from "../../stores";
 import { SearchShortcutKbd } from "../Search";
@@ -112,6 +113,73 @@ function FacetButton({
   );
 }
 
+const PICKS: readonly [TraitPick, string][] = [
+  ["any", "Any"],
+  ["yes", "Yes"],
+  ["no", "No"],
+];
+
+/**
+ * A trait: any network, or only those that have it (yes) or lack it (no). Yes and no show in their tooltip how
+ * many networks they would show.
+ */
+function TraitSwitch({
+  label,
+  pick,
+  counts,
+  onPick,
+}: {
+  label: string;
+  pick: TraitPick;
+  counts: { yes: number; no: number };
+  onPick: (pick: TraitPick) => void;
+}) {
+  return (
+    <fieldset
+      aria-label={label}
+      className="flex min-w-0 items-center gap-2 px-2 py-0.5 text-xs"
+    >
+      <span
+        className={`min-w-0 flex-1 truncate ${pick === "any" ? "text-neutral-700" : "font-medium text-blue-800"}`}
+      >
+        {label}
+      </span>
+      <span className="inline-flex shrink-0 overflow-hidden rounded-md ring-1 ring-neutral-200">
+        {PICKS.map(([p, text]) => {
+          const n = p === "any" ? null : counts[p];
+          const pressed = pick === p;
+          const empty = n === 0 && !pressed;
+          return (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={pressed}
+              disabled={empty}
+              title={
+                n === null
+                  ? undefined
+                  : `${full(n)} ${n === 1 ? "network" : "networks"}`
+              }
+              onClick={() => onPick(p)}
+              className={`border-l border-neutral-200 px-1 py-0.5 outline-none first:border-l-0 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
+                pressed
+                  ? p === "any"
+                    ? "bg-neutral-100 font-medium text-neutral-800"
+                    : "bg-blue-50 font-medium text-blue-800"
+                  : empty
+                    ? "text-neutral-300"
+                    : "text-neutral-500 hover:bg-neutral-100"
+              }`}
+            >
+              {text}
+            </button>
+          );
+        })}
+      </span>
+    </fieldset>
+  );
+}
+
 const Filters = observer(function Filters() {
   const { library } = useStores();
   const catalog = library.catalog;
@@ -156,14 +224,14 @@ const Filters = observer(function Filters() {
         ))}
       </section>
       <section>
-        <FacetHeading hint="all of">Kind</FacetHeading>
-        {KINDS.map(([k, text]) => (
-          <FacetButton
+        <FacetHeading hint="all of">Traits</FacetHeading>
+        {TRAITS.map(([k, text]) => (
+          <TraitSwitch
             key={k}
             label={text}
-            count={facets.kinds.get(k) ?? 0}
-            pressed={filters.kinds.includes(k)}
-            onPress={() => library.toggleKind(k)}
+            pick={filters.traits[k]}
+            counts={facets.traits.get(k) ?? { yes: 0, no: 0 }}
+            onPick={(pick) => library.setTrait(k, pick)}
           />
         ))}
       </section>
@@ -238,8 +306,8 @@ function Row({
         <span className="shrink-0">
           {entry.directed ? "directed" : "undirected"}
         </span>
-        {KINDS.filter(([k]) => entry.kinds[k] === true).map(([k, text]) => (
-          // A separator stays with the kind after it when the line wraps.
+        {TRAITS.filter(([k]) => entry.traits[k] === true).map(([k, text]) => (
+          // A separator stays with the trait after it when the line wraps.
           <span key={k} className="inline-flex shrink-0 items-center gap-1.5">
             <span className="text-neutral-300">·</span>
             {text.toLowerCase()}
@@ -465,7 +533,7 @@ const Detail = observer(function Detail({ loading }: { loading: boolean }) {
   const loadedNow = network.current?.origin?.key === e?.key;
   const citation =
     e?.citations.map((c) => citationText(c.text)).join("\n\n") ?? "";
-  const kinds = e ? describeKinds(e.kinds) : null;
+  const traits = e ? describeTraits(e.traits) : null;
   return (
     <aside
       aria-label="Network details"
@@ -524,14 +592,14 @@ const Detail = observer(function Detail({ loading }: { loading: boolean }) {
                 </dd>
               </div>
             ))}
-            {kinds && (
+            {traits && (
               <div className="col-span-2 bg-white px-3 py-2">
-                <dt className="text-[11px] text-neutral-500">Kind</dt>
+                <dt className="text-[11px] text-neutral-500">Traits</dt>
                 <dd className="font-medium text-neutral-900">
-                  {kinds.is}
-                  {kinds.unstated.length > 0 && (
+                  {traits.is}
+                  {traits.unstated.length > 0 && (
                     <span className="font-normal text-neutral-500">
-                      {` · not stated: ${kinds.unstated.join(", ")}`}
+                      {` · not stated: ${traits.unstated.join(", ")}`}
                     </span>
                   )}
                 </dd>
