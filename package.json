@@ -17,7 +17,7 @@
     "@heroui/react": "^3.2.7",
     "@heroui/styles": "^3.2.7",
     "@mapequation/c3": "^2.0.2",
-    "@mapequation/d3gl": "^0.15.0",
+    "@mapequation/d3gl": "^0.16.0",
     "@mapequation/infomap": "^2.16.0",
     "@mapequation/infomap-parser": "^1.0.2",
     "d3-interpolate": "^3.0.2",

@@ -1,3 +1,4 @@
+import { AlertDialog, Button } from "@heroui/react";
 import {
   type ModuleNode,
   type NetworkGraph,
@@ -10,7 +11,7 @@ import {
 import { scaleLinear, scaleSqrt } from "d3-scale";
 import { computed, observable, reaction, runInAction } from "mobx";
 import { observer } from "mobx-react-lite";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { c3ModuleColor, type ModuleColor } from "../lib/c3-module-colors";
 import { columnColorOf, pickColumn, scaleOf } from "../lib/column-colors";
 import { fitTransform } from "../lib/fit-transform";
@@ -405,6 +406,10 @@ export function buildLod(
 export const NetworkView = observer(function NetworkView() {
   const { network: store, settings, ui } = useStores();
   const hostRef = useRef<HTMLDivElement>(null);
+  // The browser took the WebGL context away and hasn't given it back (d3gl
+  // waits 10 s), or rebuilding on it failed. A context that comes back later
+  // still redraws.
+  const [contextUnrestored, setContextUnrestored] = useState(false);
 
   // One engine per host. A load hands it new data; a re-clustering keeps its
   // camera and positions (see NetworkStore.topologyVersion); a render backend
@@ -413,7 +418,10 @@ export const NetworkView = observer(function NetworkView() {
     const host = hostRef.current;
     if (!host) return;
 
-    const net = network(host, { backend: settings.backend });
+    const net = network(host, {
+      backend: settings.backend,
+      onContextUnrestored: () => setContextUnrestored(true),
+    });
     store.engine = net;
 
     let colorFor: ArrayLike<ModuleNode> | undefined;
@@ -916,5 +924,42 @@ export const NetworkView = observer(function NetworkView() {
     };
   }, [store, settings, ui]);
 
-  return <div ref={hostRef} className="absolute inset-0" />;
+  return (
+    <>
+      <div ref={hostRef} className="absolute inset-0" />
+      <AlertDialog.Backdrop
+        isOpen={contextUnrestored}
+        onOpenChange={setContextUnrestored}
+      >
+        <AlertDialog.Container size="sm">
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Icon status="warning" />
+              <AlertDialog.Heading>
+                The network can't be drawn
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>
+                The browser took the graphics card away from this page and
+                hasn't given it back. Canvas draws without it and keeps the
+                network and view as they are, but is slower for large networks.
+                Or reload the page.
+              </p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button
+                slot="close"
+                variant="tertiary"
+                onPress={() => settings.set("backend", "canvas")}
+              >
+                Draw with Canvas
+              </Button>
+              <Button onPress={() => window.location.reload()}>Reload</Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </>
+  );
 });
