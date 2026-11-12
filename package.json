@@ -24,7 +24,7 @@
     "d3-scale": "^4.0.3",
     "fzstd": "^0.1.1",
     "hyparquet": "^1.33.0",
-    "katex": "^0.16.47",
+    "katex": "^0.18.2",
     "localforage": "^1.10.0",
     "mobx": "^7.1.6",
     "mobx-react-lite": "^5.1.2",
